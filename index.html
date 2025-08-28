@@ -37,6 +37,15 @@
         }
         #video {
             object-fit: cover;
+            /* FIX: Membalik video secara horizontal agar tidak mirror */
+            transform: scaleX(-1);
+        }
+        #camera-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #9ca3af;
         }
         /* Style untuk Print */
         @media print {
@@ -103,15 +112,17 @@
                     <select id="session-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></select>
                 </div>
                 <div class="video-container mb-4">
-                    <video id="video" autoplay muted playsinline></video>
+                    <div id="camera-placeholder"><p>Pilih sesi untuk mengaktifkan kamera</p></div>
+                    <video id="video" autoplay muted playsinline class="hidden"></video>
                     <canvas id="overlay"></canvas>
+                    <button id="switch-camera-btn" class="absolute top-2 right-2 bg-gray-800 bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 z-10 hidden" title="Ganti Kamera">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 20L20 4M20 4v5h-5M4 4h5v5"></path></svg>
+                    </button>
                 </div>
                 <div id="status-container" class="text-center p-4 rounded-lg bg-gray-700 min-h-[80px] flex items-center justify-center mb-4">
-                    <p id="status" class="text-lg">Menginisialisasi kamera dan model...</p>
+                    <p id="status" class="text-lg">Menginisialisasi model...</p>
                 </div>
-                <div class="flex justify-center space-x-4">
-                    <button id="absen-btn" class="action-btn bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition duration-300">Lakukan Absen</button>
-                </div>
+                <p class="text-xs text-gray-500 text-center mt-2">Tips: Pastikan wajah Anda berada di area dengan pencahayaan yang baik.</p>
             </div>
 
             <!-- Halaman Jadwal Sesi -->
@@ -221,9 +232,7 @@
             const context = overlay.getContext('2d');
             const statusEl = document.getElementById('status');
             const registerStatusEl = document.getElementById('register-status');
-            const absenBtn = document.getElementById('absen-btn');
             const registerBtn = document.getElementById('register-btn');
-            const actionBtns = document.querySelectorAll('.action-btn');
 
             const navButtons = document.querySelectorAll('.nav-btn');
             const pages = document.querySelectorAll('.page');
@@ -239,11 +248,14 @@
             const reportSessionFilter = document.getElementById('report-session-filter');
             const printLaporanBtn = document.getElementById('print-laporan');
             const sessionListContainer = document.getElementById('session-list-container');
+            const switchCameraBtn = document.getElementById('switch-camera-btn');
+            const cameraPlaceholder = document.getElementById('camera-placeholder');
             let attendanceChart = null;
 
             const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-            let detectionInterval;
-            let lastMatches = [];
+            let currentStream = null;
+            let facingMode = 'user';
+            let attendedThisSession = [];
 
             // --- Fungsi Notifikasi Suara ---
             function speak(text) {
@@ -278,7 +290,8 @@
                         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
                         faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL)
                     ]);
-                    startWebcam();
+                    checkCameraSupport();
+                    switchPage('page-absensi');
                 } catch (error) {
                     console.error("Gagal memuat model:", error);
                     statusEl.innerText = 'Error: Gagal memuat model. Cek koneksi internet.';
@@ -287,58 +300,87 @@
             }
 
             // --- Fungsi Webcam & Deteksi Wajah ---
+            function stopWebcam() {
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
+                    video.classList.add('hidden');
+                    cameraPlaceholder.classList.remove('hidden');
+                    statusEl.innerText = 'Pilih sesi untuk mengaktifkan kamera.';
+                }
+            }
+
             async function startWebcam() {
+                if (currentStream) return;
                 try {
                     statusEl.innerText = 'Menyalakan kamera...';
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+                    const constraints = { video: { facingMode: facingMode } };
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     video.srcObject = stream;
+                    currentStream = stream;
+                    video.classList.remove('hidden');
+                    cameraPlaceholder.classList.add('hidden');
                 } catch (error) {
                     console.error("Gagal mengakses webcam:", error);
                     statusEl.innerText = 'Error: Gagal mengakses kamera. Izinkan akses kamera di browser Anda.';
                     statusEl.classList.add('text-red-500');
                 }
             }
+            
+            async function detectFacesLoop() {
+                if (video.paused || video.ended || !currentStream) {
+                    return;
+                }
 
-            video.addEventListener('play', () => {
-                statusEl.innerText = 'Kamera aktif. Pilih sesi untuk memulai absensi.';
-                actionBtns.forEach(btn => btn.disabled = false);
-                
+                const sessionId = sessionSelector.value;
+                if (!sessionId) { // Jangan lakukan deteksi jika tidak ada sesi dipilih
+                    requestAnimationFrame(() => detectFacesLoop());
+                    return;
+                }
+
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
                 const displaySize = { width: video.clientWidth, height: video.clientHeight };
                 faceapi.matchDimensions(overlay, displaySize);
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                
+                context.clearRect(0, 0, overlay.width, overlay.height);
 
-                detectionInterval = setInterval(async () => {
-                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
-                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                    
-                    context.clearRect(0, 0, overlay.width, overlay.height);
+                if (detections.length > 0) {
+                    handleAutoAttendance(detections);
+                } else {
+                     statusEl.innerText = 'Arahkan wajah ke kamera.';
+                }
+                
+                resizedDetections.forEach(d => {
+                    const box = d.detection.box;
+                    const drawBox = new faceapi.draw.DrawBox(box, { boxColor: '#6b7280' });
+                    drawBox.draw(overlay);
+                });
+                
+                requestAnimationFrame(() => detectFacesLoop());
+            }
 
-                    if (lastMatches.length > 0) {
-                        lastMatches.forEach(match => {
-                            const resizedResult = faceapi.resizeResults(match, displaySize);
-                            let boxColor;
-                            switch(match.status) {
-                                case 'success': boxColor = '#22c55e'; break;
-                                case 'error':   boxColor = '#ef4444'; break;
-                                case 'info':    boxColor = '#3b82f6'; break;
-                                default:        boxColor = '#6b7280';
-                            }
-                            const drawBox = new faceapi.draw.DrawBox(resizedResult.detection.box, { 
-                                label: match.label, boxColor: boxColor,
-                                drawLabelOptions: { fontColor: 'white', backgroundColor: boxColor }
-                            });
-                            drawBox.draw(overlay);
-                        });
-                    } else {
-                        faceapi.draw.drawDetections(overlay, resizedDetections);
-                        if (detections.length > 0) {
-                           if (!statusEl.innerText.includes('Mendeteksi')) {
-                                statusEl.innerText = `${detections.length} wajah terdeteksi. Siap untuk absensi.`;
-                           }
-                        } else if (sessionSelector.value) {
-                            statusEl.innerText = 'Arahkan wajah ke kamera.';
-                        }
+            video.addEventListener('play', () => {
+                statusEl.innerText = 'Kamera aktif. Arahkan wajah ke kamera.';
+                detectFacesLoop();
+            });
+
+            async function checkCameraSupport() {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoInputs = devices.filter(device => device.kind === 'videoinput');
+                    if (videoInputs.length > 1) {
+                        switchCameraBtn.classList.remove('hidden');
                     }
-                }, 200);
+                } catch (error) {
+                    console.error("Error enumerating devices:", error);
+                }
+            }
+
+            switchCameraBtn.addEventListener('click', () => {
+                stopWebcam();
+                facingMode = facingMode === 'user' ? 'environment' : 'user';
+                startWebcam();
             });
 
             // --- Manajemen Data (localStorage) ---
@@ -436,84 +478,48 @@
                     activeSessions.forEach((s, index) => {
                         sessionSelector.innerHTML += `<option value="${s.id}">Sesi #${index + 1} (${s.startTime} - ${s.endTime})</option>`;
                     });
-                    absenBtn.disabled = true;
                 } else {
                     sessionSelector.innerHTML = '<option value="">Tidak ada sesi aktif saat ini</option>';
-                    absenBtn.disabled = true;
                 }
             }
 
             sessionSelector.addEventListener('change', () => {
-                absenBtn.disabled = !sessionSelector.value;
+                const sessionId = sessionSelector.value;
+                attendedThisSession = []; // Reset daftar yang sudah absen setiap ganti sesi
+                if (sessionId) {
+                    startWebcam();
+                } else {
+                    stopWebcam();
+                }
             });
 
-            absenBtn.addEventListener('click', async () => {
+            async function handleAutoAttendance(detections) {
                 const sessionId = sessionSelector.value;
-                if (!sessionId) {
-                    statusEl.innerText = 'Silakan pilih sesi terlebih dahulu.';
-                    return;
-                }
+                if (!sessionId) return;
 
                 const sessions = getSessions();
                 const selectedSession = sessions.find(s => s.id === sessionId);
                 const allUsers = getRegisteredUsers();
-                
                 const participantsData = allUsers.filter(user => selectedSession.participants.includes(user.name));
+                if (participantsData.length === 0) return;
 
-                if (participantsData.length === 0) {
-                    statusEl.innerText = 'Tidak ada data peserta untuk sesi ini.';
-                    return;
-                }
-
-                statusEl.innerText = 'Mendeteksi wajah untuk absensi...';
                 const labeledFaceDescriptors = participantsData.map(user => new faceapi.LabeledFaceDescriptors(user.name, [new Float32Array(user.descriptor)]));
-                const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6); 
-                
-                const allResults = await faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
-                
-                if (allResults.length > 0) {
-                    const matches = [];
-                    const successfulNames = [];
-                    const alreadyAttendedNames = [];
+                const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
 
-                    allResults.forEach(result => {
-                        const bestMatch = faceMatcher.findBestMatch(result.descriptor);
-                        const user = participantsData.find(u => u.name === bestMatch.label);
-                        if (user) {
-                            const attendanceStatus = recordAttendance(user, selectedSession);
-                            if (attendanceStatus.status === 'success') {
-                                matches.push({ detection: result.detection, label: user.name, status: 'success' });
-                                successfulNames.push(user.name);
-                            } else if (attendanceStatus.status === 'already_attended') {
-                                matches.push({ detection: result.detection, label: `${user.name} (Sudah Absen)`, status: 'info' });
-                                alreadyAttendedNames.push(user.name);
-                            }
-                        } else {
-                            matches.push({ detection: result.detection, label: 'Tidak Terdaftar di Sesi Ini', status: 'error' });
+                for (const detection of detections) {
+                    const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+                    const user = participantsData.find(u => u.name === bestMatch.label);
+
+                    if (user && !attendedThisSession.includes(user.name)) {
+                        const attendanceStatus = recordAttendance(user, selectedSession);
+                        if (attendanceStatus.status === 'success') {
+                            attendedThisSession.push(user.name);
+                            statusEl.innerText = `Absensi berhasil: ${user.name}`;
+                            speak(`Absensi berhasil ${user.name}`);
                         }
-                    });
-
-                    lastMatches = matches;
-                    
-                    let summaryParts = [];
-                    if (successfulNames.length > 0) summaryParts.push(`Absensi berhasil untuk: ${successfulNames.join(', ')}.`);
-                    if (alreadyAttendedNames.length > 0) summaryParts.push(`${alreadyAttendedNames.join(', ')} sudah absen sebelumnya.`);
-
-                    if (summaryParts.length > 0) {
-                        statusEl.innerText = summaryParts.join(' ');
-                        if (successfulNames.length > 0) speak(`${successfulNames.length} orang berhasil diabsen.`);
-                    } else {
-                        statusEl.innerText = 'Tidak ada wajah yang dikenali atau semua sudah absen.';
-                        speak('Tidak ada wajah yang dikenali.');
                     }
-
-                } else {
-                    lastMatches = [];
-                    statusEl.innerText = 'Tidak ada wajah terdeteksi.';
-                    speak('Tidak ada wajah terdeteksi.');
                 }
-                setTimeout(() => { lastMatches = []; }, 4000);
-            });
+            }
 
             function recordAttendance(user, session) {
                 const log = getAttendanceLog();
@@ -879,17 +885,33 @@
                 const activeBtn = document.getElementById(navId);
                 if(activeBtn) activeBtn.classList.replace('bg-gray-700', 'bg-cyan-600');
                 
+                // FIX: Logika start/stop kamera yang lebih baik
+                if (targetPageId === 'page-registrasi') {
+                    startWebcam();
+                } else if (targetPageId === 'page-absensi') {
+                    // Jangan start kamera dulu, biarkan session selector yang mengontrol
+                    populateSessionSelector();
+                    if (!sessionSelector.value) {
+                        stopWebcam();
+                    }
+                }
+                else {
+                    stopWebcam();
+                }
+
+                // Pindahkan video container jika targetnya halaman kamera
                 if (targetPageId === 'page-absensi' || targetPageId === 'page-registrasi') {
                     const targetContainer = document.querySelector(`#${targetPageId} .video-container`);
                     if (targetContainer) {
                          targetContainer.appendChild(video);
                          targetContainer.appendChild(overlay);
+                         targetContainer.appendChild(switchCameraBtn);
                     }
                 }
 
+
                 if (targetPageId === 'page-laporan') displayLaporan();
                 if (targetPageId === 'page-peserta') displayPeserta();
-                if (targetPageId === 'page-absensi') populateSessionSelector();
                 if (targetPageId === 'page-sesi-list') displaySessionList();
                 if (targetPageId === 'page-grafik') displayGrafik();
             }
