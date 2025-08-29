@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aplikasi Absensi Face ID (Fitur Lanjutan)</title>
+    <title>Aplikasi Absensi Face ID (Layout Responsif)</title>
     
     <link rel="manifest" id="manifest">
     <meta name="theme-color" content="#1f2937"/>
@@ -13,6 +13,11 @@
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* Menggunakan font Inter untuk tampilan yang lebih modern */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
         .video-container {
             position: relative;
             width: 100%;
@@ -20,8 +25,9 @@
             aspect-ratio: 4 / 3;
             margin: 0 auto;
             background-color: #111827;
-            border-radius: 0.5rem;
+            border-radius: 0.75rem; /* Sedikit lebih bulat */
             overflow: hidden;
+            border: 1px solid #374151;
         }
         #video, #overlay {
             position: absolute;
@@ -29,7 +35,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            border-radius: 0.5rem;
+            border-radius: 0.75rem;
         }
         #video {
             object-fit: cover;
@@ -40,18 +46,20 @@
             bottom: 10px;
             left: 10px;
             right: 10px;
-            background-color: rgba(0,0,0,0.6);
+            background-color: rgba(0,0,0,0.7);
             color: white;
-            padding: 8px;
+            padding: 8px 12px;
             border-radius: 0.5rem;
             text-align: center;
             font-size: 0.875rem;
             z-index: 20;
             transition: opacity 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         #success-modal {
             transition: opacity 0.3s ease, transform 0.3s ease;
         }
+        /* Style untuk Print */
         @media print {
             body > *:not(.printable-area) { display: none; }
             .printable-area, .printable-area #page-laporan { display: block !important; visibility: visible; }
@@ -67,44 +75,45 @@
         .status-print-only { display: none; }
     </style>
 </head>
-<body class="bg-gray-900 text-white font-sans flex flex-col items-center justify-center min-h-screen p-4">
+<body class="bg-gray-900 text-white flex flex-col items-center min-h-screen p-2 sm:p-4">
 
-    <div class="w-full max-w-4xl bg-gray-800 rounded-lg shadow-xl p-6 printable-area">
+    <div class="w-full max-w-5xl bg-gray-800 rounded-xl shadow-2xl p-4 sm:p-6 printable-area">
         <header class="text-center mb-6 no-print">
-            <h1 class="text-3xl font-bold text-cyan-400">Sistem Absensi Pengenalan Wajah</h1>
-            <p class="text-gray-400">Dilengkapi Deteksi Kehidupan (Senyum) & Umpan Balik Kualitas.</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-cyan-400">Sistem Absensi Pengenalan Wajah</h1>
+            <p class="text-gray-400 text-sm sm:text-base mt-1">Dilengkapi Deteksi Kehidupan & Umpan Balik Kualitas.</p>
         </header>
 
-        <nav class="flex justify-center flex-wrap gap-2 sm:space-x-4 mb-6 border-b border-gray-700 pb-4 no-print">
-            <button id="nav-absensi" class="nav-btn bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Absensi</button>
-            <button id="nav-registrasi" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Registrasi</button>
-            <button id="nav-peserta" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Daftar Peserta</button>
-            <button id="nav-jadwal" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Buat Sesi</button>
-            <button id="nav-sesi-list" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Daftar Sesi</button>
-            <button id="nav-laporan" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Laporan</button>
-            <button id="nav-grafik" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Grafik</button>
+        <nav class="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-3 mb-6 border-b border-gray-700 pb-4 no-print">
+            <button id="nav-absensi" class="nav-btn w-full sm:w-auto bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Absensi</button>
+            <button id="nav-registrasi" class="nav-btn w-full sm:w-auto bg-gray-700 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Registrasi</button>
+            <button id="nav-peserta" class="nav-btn w-full sm:w-auto bg-gray-700 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Peserta</button>
+            <div class="w-full sm:w-auto flex flex-col sm:flex-row gap-2 sm:gap-3">
+                <button id="nav-jadwal" class="nav-btn w-full sm:w-auto bg-gray-700 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Sesi</button>
+                <button id="nav-laporan" class="nav-btn w-full sm:w-auto bg-gray-700 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Laporan</button>
+                <button id="nav-grafik" class="nav-btn w-full sm:w-auto bg-gray-700 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Grafik</button>
+            </div>
         </nav>
 
         <main>
             <!-- Halaman Absensi -->
             <div id="page-absensi" class="page">
-                 <div class="mb-4">
+                 <div class="mb-4 max-w-md mx-auto">
                     <label for="session-selector" class="block mb-2 text-sm font-medium text-gray-300">Pilih Sesi Aktif Hari Ini:</label>
                     <select id="session-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></select>
                 </div>
                 <div class="video-container mb-4">
-                    <div id="camera-placeholder-absensi" class="flex items-center justify-center h-full"><p>Pilih sesi untuk mengaktifkan kamera</p></div>
+                    <div id="camera-placeholder-absensi" class="flex items-center justify-center h-full text-gray-500"><p>Pilih sesi untuk mengaktifkan kamera</p></div>
                 </div>
-                <div id="status-container" class="text-center p-4 rounded-lg bg-gray-700 min-h-[80px] flex items-center justify-center mb-4">
-                    <p id="status" class="text-lg">Menginisialisasi model...</p>
+                <div id="status-container" class="text-center p-4 rounded-lg bg-gray-700 min-h-[72px] flex items-center justify-center mb-4 max-w-md mx-auto">
+                    <p id="status" class="text-base sm:text-lg">Menginisialisasi model...</p>
                 </div>
             </div>
 
             <!-- Halaman Registrasi -->
             <div id="page-registrasi" class="page hidden">
-                <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Registrasi Wajah Baru</h2>
+                <h2 class="text-xl sm:text-2xl font-semibold text-center mb-4 text-cyan-400">Registrasi Wajah Baru</h2>
                 <div class="video-container mb-4">
-                     <div id="camera-placeholder-registrasi" class="flex items-center justify-center h-full"><p>Kamera akan aktif di sini</p></div>
+                     <div id="camera-placeholder-registrasi" class="flex items-center justify-center h-full text-gray-500"><p>Kamera akan aktif di sini</p></div>
                 </div>
                  <div class="max-w-md mx-auto">
                     <div class="mb-4">
@@ -118,7 +127,7 @@
 
             <!-- Halaman Jadwal Sesi -->
             <div id="page-jadwal" class="page hidden">
-                <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Buat Jadwal Sesi Baru</h2>
+                <h2 class="text-xl sm:text-2xl font-semibold text-center mb-4 text-cyan-400">Buat Jadwal Sesi Baru</h2>
                 <div class="max-w-md mx-auto">
                     <div class="mb-4">
                         <label for="session-date" class="block mb-2 text-sm font-medium text-gray-300">Tanggal Sesi</label>
@@ -142,28 +151,28 @@
 
             <!-- Halaman Daftar Sesi -->
             <div id="page-sesi-list" class="page hidden">
-                <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Daftar Semua Sesi</h2>
-                <div id="session-list-container" class="space-y-3 max-h-96 overflow-y-auto"></div>
+                <h2 class="text-xl sm:text-2xl font-semibold text-center mb-4 text-cyan-400">Daftar Semua Sesi</h2>
+                <div id="session-list-container" class="space-y-3 max-h-96 overflow-y-auto p-1"></div>
             </div>
 
              <!-- Halaman Grafik -->
             <div id="page-grafik" class="page hidden">
-                <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Analisis Kehadiran</h2>
-                <div class="mb-6">
+                <h2 class="text-xl sm:text-2xl font-semibold text-center mb-4 text-cyan-400">Analisis Kehadiran</h2>
+                <div class="mb-6 max-w-md mx-auto">
                     <label for="grafik-session-filter" class="block mb-2 text-sm font-medium text-gray-300">Pilih Sesi untuk Ringkasan:</label>
                     <select id="grafik-session-filter" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></select>
                 </div>
-                <div class="bg-gray-700 p-4 rounded-lg mb-6">
+                <div class="bg-gray-700/50 p-4 rounded-lg mb-6 max-w-md mx-auto">
                     <canvas id="summaryChart"></canvas>
                 </div>
-                <h3 class="text-xl font-semibold text-center mb-4 text-cyan-400">Peringkat Disiplin (Total Poin Tepat Waktu)</h3>
-                <div id="performance-leaderboard-container" class="space-y-2"></div>
+                <h3 class="text-lg sm:text-xl font-semibold text-center mb-4 text-cyan-400">Peringkat Disiplin</h3>
+                <div id="performance-leaderboard-container" class="space-y-2 max-w-lg mx-auto"></div>
             </div>
 
             <!-- Halaman Daftar Peserta -->
             <div id="page-peserta" class="page hidden">
-                <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Daftar Peserta Terdaftar</h2>
-                <div class="overflow-x-auto relative shadow-md sm:rounded-lg max-h-96 overflow-y-auto">
+                <h2 class="text-xl sm:text-2xl font-semibold text-center mb-4 text-cyan-400">Daftar Peserta Terdaftar</h2>
+                <div class="overflow-x-auto relative shadow-md sm:rounded-lg max-h-96">
                     <table class="w-full text-sm text-left text-gray-400">
                         <thead class="text-xs text-gray-300 uppercase bg-gray-700 sticky top-0">
                             <tr>
@@ -178,14 +187,14 @@
 
             <!-- Halaman Laporan -->
             <div id="page-laporan" class="page hidden">
-                <h2 id="laporan-title" class="text-2xl font-semibold text-center mb-4 text-cyan-400">Laporan Kehadiran</h2>
+                <h2 id="laporan-title" class="text-xl sm:text-2xl font-semibold text-center mb-4 text-cyan-400">Laporan Kehadiran</h2>
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 no-print">
-                    <div class="w-full sm:w-auto">
+                    <div class="w-full sm:w-auto flex-grow">
                         <label for="report-session-filter" class="sr-only">Filter Sesi:</label>
                         <select id="report-session-filter" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></select>
                     </div>
-                    <div class="flex space-x-2">
-                        <button id="print-laporan" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm">Print Laporan</button>
+                    <div class="flex space-x-2 w-full sm:w-auto">
+                        <button id="print-laporan" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm">Print Laporan</button>
                     </div>
                 </div>
                 <div id="laporan-container" class="overflow-x-auto relative shadow-md sm:rounded-lg">
@@ -549,7 +558,7 @@
             function showStatus(element, message, type = 'info') {
                 element.innerText = message;
                 const container = element.parentElement;
-                container.className = 'text-center p-4 rounded-lg min-h-[80px] flex items-center justify-center mb-4';
+                container.className = 'text-center p-4 rounded-lg min-h-[72px] flex items-center justify-center mb-4 max-w-md mx-auto';
                 switch(type) {
                     case 'success': container.classList.add('bg-green-900', 'text-green-300'); break;
                     case 'error': container.classList.add('bg-red-900', 'text-red-300'); break;
@@ -791,7 +800,7 @@
                     const rank = index + 1;
                     const colors = { 1: 'text-yellow-300', 2: 'text-gray-200', 3: 'text-orange-300' };
                     const icon = { 1: '🏆', 2: '🥈', 3: '🥉' };
-                    return `<div class="p-3 rounded-lg bg-gray-800/50 flex items-center justify-between">
+                    return `<div class="p-3 rounded-lg bg-gray-700/50 flex items-center justify-between">
                                 <div class="flex items-center">
                                     <p class="font-bold text-lg mr-4 ${colors[rank] || 'text-gray-400'}">${icon[rank] || `#${rank}`}</p>
                                     <p>${user.name}</p>
