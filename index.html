@@ -3,30 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aplikasi Absensi Face ID (Diperbaiki)</title>
+    <title>Aplikasi Absensi Face ID (Fitur Lanjutan)</title>
     
-    <!-- PWA Manifest and Theme Color -->
     <link rel="manifest" id="manifest">
     <meta name="theme-color" content="#1f2937"/>
     <link rel="apple-touch-icon" href="https://placehold.co/192x192/1f2937/ffffff?text=Absen">
 
-    <!-- Menggunakan Tailwind CSS dari CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Mengimpor library face-api.js -->
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <!-- Mengimpor Chart.js untuk grafik -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Custom style untuk posisi video dan canvas */
         .video-container {
             position: relative;
             width: 100%;
             max-width: 500px;
             aspect-ratio: 4 / 3;
             margin: 0 auto;
-            background-color: #333;
+            background-color: #111827;
             border-radius: 0.5rem;
-            overflow: hidden; /* Menjaga elemen di dalam container */
+            overflow: hidden;
         }
         #video, #overlay {
             position: absolute;
@@ -38,54 +33,38 @@
         }
         #video {
             object-fit: cover;
-            transform: scaleX(-1); /* Cermin untuk kamera depan */
+            transform: scaleX(-1);
         }
-        #camera-placeholder {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: #9ca3af;
+        .feedback-box {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background-color: rgba(0,0,0,0.6);
+            color: white;
+            padding: 8px;
+            border-radius: 0.5rem;
+            text-align: center;
+            font-size: 0.875rem;
+            z-index: 20;
+            transition: opacity 0.3s ease;
         }
-        /* Style untuk Print */
+        #success-modal {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
         @media print {
-            body > *:not(.printable-area) {
-                display: none;
-            }
-            .printable-area, .printable-area #page-laporan {
-                display: block !important;
-                visibility: visible;
-            }
-            .no-print {
-                display: none !important;
-            }
-            body, .bg-gray-800 {
-                background-color: white !important;
-                color: black !important;
-            }
-            h2, th, td {
-                color: black !important;
-            }
-            thead {
-                background-color: #eee !important;
-            }
-            tr {
-                border-bottom: 1px solid #ccc;
-            }
-            #laporan-container {
-                box-shadow: none;
-                border: 1px solid #ccc;
-            }
-            .status-override-select {
-                display: none;
-            }
-            .status-print-only {
-                display: inline !important;
-            }
+            body > *:not(.printable-area) { display: none; }
+            .printable-area, .printable-area #page-laporan { display: block !important; visibility: visible; }
+            .no-print { display: none !important; }
+            body, .bg-gray-800 { background-color: white !important; color: black !important; }
+            h2, th, td { color: black !important; }
+            thead { background-color: #eee !important; }
+            tr { border-bottom: 1px solid #ccc; }
+            #laporan-container { box-shadow: none; border: 1px solid #ccc; }
+            .status-override-select { display: none; }
+            .status-print-only { display: inline !important; }
         }
-        .status-print-only {
-            display: none;
-        }
+        .status-print-only { display: none; }
     </style>
 </head>
 <body class="bg-gray-900 text-white font-sans flex flex-col items-center justify-center min-h-screen p-4">
@@ -93,10 +72,9 @@
     <div class="w-full max-w-4xl bg-gray-800 rounded-lg shadow-xl p-6 printable-area">
         <header class="text-center mb-6 no-print">
             <h1 class="text-3xl font-bold text-cyan-400">Sistem Absensi Pengenalan Wajah</h1>
-            <p class="text-gray-400">Akurasi ditingkatkan dengan registrasi multi-sampel dan deteksi stabil.</p>
+            <p class="text-gray-400">Dilengkapi Deteksi Kehidupan (Senyum) & Umpan Balik Kualitas.</p>
         </header>
 
-        <!-- Navigasi -->
         <nav class="flex justify-center flex-wrap gap-2 sm:space-x-4 mb-6 border-b border-gray-700 pb-4 no-print">
             <button id="nav-absensi" class="nav-btn bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Absensi</button>
             <button id="nav-registrasi" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Registrasi</button>
@@ -115,19 +93,18 @@
                     <select id="session-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></select>
                 </div>
                 <div class="video-container mb-4">
-                    <div id="camera-placeholder-absensi"><p>Pilih sesi untuk mengaktifkan kamera</p></div>
+                    <div id="camera-placeholder-absensi" class="flex items-center justify-center h-full"><p>Pilih sesi untuk mengaktifkan kamera</p></div>
                 </div>
                 <div id="status-container" class="text-center p-4 rounded-lg bg-gray-700 min-h-[80px] flex items-center justify-center mb-4">
                     <p id="status" class="text-lg">Menginisialisasi model...</p>
                 </div>
-                <p class="text-xs text-gray-500 text-center mt-2">Tips: Pastikan wajah Anda berada di area dengan pencahayaan yang baik.</p>
             </div>
 
             <!-- Halaman Registrasi -->
             <div id="page-registrasi" class="page hidden">
                 <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Registrasi Wajah Baru</h2>
                 <div class="video-container mb-4">
-                     <div id="camera-placeholder-registrasi"><p>Kamera akan aktif di sini</p></div>
+                     <div id="camera-placeholder-registrasi" class="flex items-center justify-center h-full"><p>Kamera akan aktif di sini</p></div>
                 </div>
                  <div class="max-w-md mx-auto">
                     <div class="mb-4">
@@ -166,9 +143,7 @@
             <!-- Halaman Daftar Sesi -->
             <div id="page-sesi-list" class="page hidden">
                 <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Daftar Semua Sesi</h2>
-                <div id="session-list-container" class="space-y-3 max-h-96 overflow-y-auto">
-                    <!-- Daftar sesi akan di-generate oleh JS -->
-                </div>
+                <div id="session-list-container" class="space-y-3 max-h-96 overflow-y-auto"></div>
             </div>
 
              <!-- Halaman Grafik -->
@@ -182,9 +157,7 @@
                     <canvas id="summaryChart"></canvas>
                 </div>
                 <h3 class="text-xl font-semibold text-center mb-4 text-cyan-400">Peringkat Disiplin (Total Poin Tepat Waktu)</h3>
-                <div id="performance-leaderboard-container" class="space-y-2">
-                    <!-- Peringkat akan di-generate oleh JS -->
-                </div>
+                <div id="performance-leaderboard-container" class="space-y-2"></div>
             </div>
 
             <!-- Halaman Daftar Peserta -->
@@ -233,15 +206,25 @@
         </main>
     </div>
 
-    <!-- Video elements moved here to be globally accessible and not re-created -->
+    <!-- Elemen Global -->
     <div id="global-video-container" style="display: none;">
         <video id="video" autoplay muted playsinline></video>
         <canvas id="overlay"></canvas>
+        <div id="feedback-box" class="feedback-box opacity-0"></div>
         <button id="switch-camera-btn" class="absolute top-2 right-2 bg-gray-800 bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 z-10 hidden" title="Ganti Kamera">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 20L20 4M20 4v5h-5M4 4h5v5"></path></svg>
         </button>
     </div>
 
+    <!-- Modal Sukses Absensi -->
+    <div id="success-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 opacity-0 pointer-events-none transform scale-95">
+        <div class="bg-gray-800 rounded-2xl shadow-xl p-8 text-center border-2 border-green-500">
+            <img id="success-photo" src="https://placehold.co/150x150/1f2937/ffffff?text=Foto" class="w-36 h-36 rounded-full mx-auto mb-4 border-4 border-gray-600 object-cover">
+            <h3 id="success-name" class="text-2xl font-bold text-white mb-1">Nama Peserta</h3>
+            <p class="text-green-400 font-semibold text-lg mb-2">Absensi Berhasil!</p>
+            <p id="success-time" class="text-gray-400">Pada pukul 00:00:00</p>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -252,39 +235,39 @@
             const statusEl = document.getElementById('status');
             const registerStatusEl = document.getElementById('register-status');
             const registerBtn = document.getElementById('register-btn');
-
+            const sessionSelector = document.getElementById('session-selector');
+            const feedbackBox = document.getElementById('feedback-box');
+            const successModal = document.getElementById('success-modal');
             const navButtons = document.querySelectorAll('.nav-btn');
             const pages = document.querySelectorAll('.page');
             const laporanBody = document.getElementById('laporan-body');
             const pesertaBody = document.getElementById('peserta-body');
-            
             const sessionDateEl = document.getElementById('session-date');
             const sessionStartTimeEl = document.getElementById('session-start-time');
             const sessionEndTimeEl = document.getElementById('session-end-time');
             const createSessionBtn = document.getElementById('create-session-btn');
             const sessionStatusEl = document.getElementById('session-status');
-            const sessionSelector = document.getElementById('session-selector');
             const reportSessionFilter = document.getElementById('report-session-filter');
             const printLaporanBtn = document.getElementById('print-laporan');
             const sessionListContainer = document.getElementById('session-list-container');
-            const switchCameraBtn = document.getElementById('switch-camera-btn');
             const grafikSessionFilter = document.getElementById('grafik-session-filter');
             const performanceLeaderboardContainer = document.getElementById('performance-leaderboard-container');
             let summaryChart = null;
 
+            // --- Variabel State ---
             const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
             let currentStream = null;
             let facingMode = 'user';
-            let attendedThisSession = [];
             let detectionInterval;
+            let currentAppMode = 'idle'; // 'idle', 'registering', 'recognizing', 'liveness_check'
+            let registrationState = { samples: [], bestSamplePhoto: null };
+            let recognitionState = { name: null, count: 0, user: null };
+            let livenessState = { user: null, timeout: null };
+            let attendedThisSession = [];
 
-            // --- Variabel State untuk Logika Baru ---
-            let isRegistrationMode = false;
-            let registrationSamples = [];
             const SAMPLES_REQUIRED = 3;
-            let attendanceTracker = { name: null, count: 0 };
-            // PERBAIKAN: Sesuaikan frame konfirmasi dengan interval deteksi yang baru
-            const ATTENDANCE_CONFIRMATION_COUNT = 5; // Target ~2 detik (5 deteksi @ 400ms interval)
+            const RECOGNITION_CONFIRMATION_COUNT = 5; // ~2 detik
+            const LIVENESS_TIMEOUT_MS = 5000; // 5 detik untuk senyum
 
             // --- Fungsi Notifikasi Suara ---
             function speak(text) {
@@ -294,11 +277,11 @@
                 window.speechSynthesis.speak(utterance);
             }
 
-            // --- Setup PWA (Progressive Web App) ---
+            // --- Setup PWA ---
             function setupPWA() {
                 const manifestData = {
                     "name": "Aplikasi Absensi Wajah", "short_name": "Absen Wajah", "start_url": ".", "display": "standalone",
-                    "background_color": "#1f2937", "theme_color": "#1f2937", "description": "Aplikasi untuk melakukan absensi menggunakan pengenalan wajah.",
+                    "background_color": "#1f2937", "theme_color": "#1f2937", "description": "Aplikasi absensi dengan pengenalan wajah.",
                     "icons": [
                         { "src": "https://placehold.co/192x192/1f2937/ffffff?text=Absen", "type": "image/png", "sizes": "192x192" },
                         { "src": "https://placehold.co/512x512/1f2937/ffffff?text=Absen", "type": "image/png", "sizes": "512x512" }
@@ -312,18 +295,18 @@
             // --- Inisialisasi Aplikasi ---
             async function initialize() {
                 try {
-                    statusEl.innerText = 'Memuat model pengenalan wajah...';
+                    statusEl.innerText = 'Memuat model...';
                     await Promise.all([
                         faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
                         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
                     ]);
-                    checkCameraSupport();
+                    setupPWA();
                     switchPage('page-absensi');
                 } catch (error) {
                     console.error("Gagal memuat model:", error);
-                    statusEl.innerText = 'Error: Gagal memuat model. Cek koneksi internet.';
-                    statusEl.classList.add('text-red-500');
+                    statusEl.innerText = 'Error: Gagal memuat model.';
                 }
             }
 
@@ -333,176 +316,308 @@
                     currentStream.getTracks().forEach(track => track.stop());
                     currentStream = null;
                 }
-                if (detectionInterval) {
-                    clearInterval(detectionInterval);
-                    detectionInterval = null;
-                }
-                const videoContainer = video.parentElement;
-                if (videoContainer) {
-                    const placeholderId = videoContainer.id.replace('video-container', 'camera-placeholder');
-                    const placeholder = document.getElementById(placeholderId);
-                    if(placeholder) placeholder.classList.remove('hidden');
-                }
+                clearInterval(detectionInterval);
+                detectionInterval = null;
                 video.classList.add('hidden');
                 overlay.classList.add('hidden');
-                statusEl.innerText = 'Kamera tidak aktif.';
+                feedbackBox.classList.add('opacity-0');
+                currentAppMode = 'idle';
             }
 
             async function startWebcam(containerElement) {
                 if (currentStream || !containerElement) return;
                 try {
-                    statusEl.innerText = 'Menyalakan kamera...';
-                    
-                    containerElement.append(video, overlay, switchCameraBtn);
+                    containerElement.append(video, overlay, document.getElementById('switch-camera-btn'), feedbackBox);
                     video.classList.remove('hidden');
                     overlay.classList.remove('hidden');
-                    const placeholder = containerElement.querySelector('[id^="camera-placeholder"]');
-                    if(placeholder) placeholder.innerHTML = '';
                     
-                    const constraints = { video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 } } };
-                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
                     video.srcObject = stream;
                     currentStream = stream;
 
                     video.onloadedmetadata = () => {
-                        const displaySize = { width: containerElement.clientWidth, height: containerElement.clientHeight };
-                        faceapi.matchDimensions(overlay, displaySize);
-                        if (!detectionInterval) {
-                            // PERBAIKAN: Ubah interval untuk performa lebih baik
-                            detectionInterval = setInterval(detectFaces, 400); // Deteksi setiap 400ms
-                        }
+                        faceapi.matchDimensions(overlay, { width: video.clientWidth, height: video.clientHeight });
+                        detectionInterval = setInterval(mainDetectionLoop, 400);
                     };
                 } catch (error) {
                     console.error("Gagal mengakses webcam:", error);
-                    statusEl.innerText = 'Error: Gagal mengakses kamera. Izinkan akses kamera di browser Anda.';
-                    statusEl.classList.add('text-red-500');
                 }
             }
-            
-            async function detectFaces() {
+
+            async function mainDetectionLoop() {
                 if (video.paused || video.ended || !currentStream) return;
 
-                const displaySize = { width: video.clientWidth, height: video.clientHeight };
-                faceapi.matchDimensions(overlay, displaySize);
-
-                const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                const detection = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
                     .withFaceLandmarks()
-                    .withFaceDescriptors();
+                    .withFaceExpressions()
+                    .withFaceDescriptor();
                 
-                const resizedDetections = faceapi.resizeResults(detections, displaySize);
                 context.clearRect(0, 0, overlay.width, overlay.height);
-                faceapi.draw.drawDetections(overlay, resizedDetections);
+                if (detection) {
+                    const resizedDetection = faceapi.resizeResults(detection, { width: video.clientWidth, height: video.clientHeight });
+                    faceapi.draw.drawDetections(overlay, resizedDetection);
+                }
+
+                const qualityFeedback = getQualityFeedback(detection);
+                updateFeedbackBox(qualityFeedback.message);
+
+                switch (currentAppMode) {
+                    case 'registering':
+                        handleRegistration(detection, qualityFeedback.isGood);
+                        break;
+                    case 'recognizing':
+                        handleRecognition(detection);
+                        break;
+                    case 'liveness_check':
+                        handleLivenessCheck(detection);
+                        break;
+                }
+            }
+
+            // --- Umpan Balik Kualitas ---
+            function getQualityFeedback(detection) {
+                if (!detection) return { isGood: false, message: 'Wajah tidak terdeteksi' };
+                const { box } = detection.detection;
+                if (box.width < 100) return { isGood: false, message: 'Terlalu jauh' };
+                const landmarks = detection.landmarks;
+                const eyeAngle = Math.atan2(landmarks.getRightEye()[0].y - landmarks.getLeftEye()[0].y, landmarks.getRightEye()[0].x - landmarks.getLeftEye()[0].x) * 180 / Math.PI;
+                if (Math.abs(eyeAngle) > 10) return { isGood: false, message: 'Posisikan wajah lebih lurus' };
+                return { isGood: true, message: 'Kualitas bagus!' };
+            }
+
+            function updateFeedbackBox(message) {
+                if (message) {
+                    feedbackBox.innerText = message;
+                    feedbackBox.classList.remove('opacity-0');
+                } else {
+                    feedbackBox.classList.add('opacity-0');
+                }
+            }
+
+            // --- Logika Registrasi ---
+            registerBtn.addEventListener('click', () => {
+                const namaLengkap = document.getElementById('namaLengkap').value.trim();
+                if (!namaLengkap) return showStatus(registerStatusEl, 'Nama harus diisi.', 'error');
+                if (getRegisteredUsers().some(u => u.name.toLowerCase() === namaLengkap.toLowerCase())) {
+                    return showStatus(registerStatusEl, `Nama "${namaLengkap}" sudah terdaftar.`, 'error');
+                }
+                currentAppMode = 'registering';
+                registrationState = { samples: [], bestSamplePhoto: null };
+                registerBtn.disabled = true;
+            });
+
+            function handleRegistration(detection, isGood) {
+                const sampleCount = registrationState.samples.length;
+                showStatus(registerStatusEl, `Mengambil sampel ${sampleCount + 1}/${SAMPLES_REQUIRED}...`);
                 
-                const activePageId = document.querySelector('.page:not(.hidden)').id;
-                const currentStatusEl = activePageId === 'page-registrasi' ? registerStatusEl : statusEl;
+                if (isGood && !window.takingSample) {
+                    window.takingSample = true;
+                    setTimeout(() => {
+                        registrationState.samples.push(Array.from(detection.descriptor));
+                        if (registrationState.samples.length === 2) {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            canvas.getContext('2d').drawImage(video, 0, 0);
+                            registrationState.bestSamplePhoto = canvas.toDataURL('image/jpeg');
+                        }
+                        if (registrationState.samples.length >= SAMPLES_REQUIRED) finalizeRegistration();
+                        window.takingSample = false;
+                    }, 1000);
+                }
+            }
+
+            function finalizeRegistration() {
+                const namaLengkap = document.getElementById('namaLengkap').value.trim();
+                const users = getRegisteredUsers();
+                users.push({ 
+                    name: namaLengkap, 
+                    descriptors: registrationState.samples,
+                    photo: registrationState.bestSamplePhoto
+                });
+                saveRegisteredUsers(users);
+                showStatus(registerStatusEl, `Registrasi berhasil untuk ${namaLengkap}!`, 'success');
+                speak(`Registrasi berhasil untuk ${namaLengkap}`);
+                document.getElementById('namaLengkap').value = '';
+                registerBtn.disabled = false;
+                currentAppMode = 'idle';
+            }
+
+            // --- Logika Absensi ---
+            async function handleRecognition(detection) {
+                const sessionId = sessionSelector.value;
+                if (!sessionId || !detection) {
+                    recognitionState = { name: null, count: 0, user: null };
+                    return;
+                }
                 
-                if (detections.length !== 1) {
-                    currentStatusEl.innerText = detections.length > 1 ? 'Hanya boleh ada satu wajah.' : 'Arahkan wajah ke kamera.';
-                    if (activePageId === 'page-absensi') attendanceTracker = { name: null, count: 0 };
+                const faceMatcher = await createFaceMatcher(sessionId);
+                if (!faceMatcher) return;
+
+                const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+                
+                if (bestMatch.label === 'unknown' || attendedThisSession.includes(bestMatch.label)) {
+                    showStatus(statusEl, 'Arahkan wajah ke kamera...');
+                    recognitionState = { name: null, count: 0, user: null };
                     return;
                 }
 
-                const singleDetection = detections[0];
-                
-                if (isRegistrationMode) {
-                    handleRegistrationProcess(singleDetection, currentStatusEl);
-                } else if (activePageId === 'page-absensi') {
-                    handleAutoAttendance(singleDetection, currentStatusEl);
+                if (recognitionState.name === bestMatch.label) {
+                    recognitionState.count++;
                 } else {
-                     currentStatusEl.innerText = 'Wajah terdeteksi.';
+                    const user = getRegisteredUsers().find(u => u.name === bestMatch.label);
+                    recognitionState = { name: bestMatch.label, count: 1, user: user };
+                }
+
+                showStatus(statusEl, `Halo, ${recognitionState.name}! Tahan posisi...`);
+
+                if (recognitionState.count >= RECOGNITION_CONFIRMATION_COUNT) {
+                    currentAppMode = 'liveness_check';
+                    livenessState.user = recognitionState.user;
+                    showStatus(statusEl, `Hai ${livenessState.user.name}, silakan tersenyum!`, 'warning');
+                    speak("Silakan tersenyum");
+                    
+                    livenessState.timeout = setTimeout(() => {
+                        if (currentAppMode === 'liveness_check') {
+                            showStatus(statusEl, 'Waktu habis. Coba lagi.', 'error');
+                            resetAttendanceState();
+                        }
+                    }, LIVENESS_TIMEOUT_MS);
                 }
             }
 
-            async function checkCameraSupport() {
-                try {
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    const videoInputs = devices.filter(device => device.kind === 'videoinput');
-                    if (videoInputs.length > 1) {
-                        switchCameraBtn.classList.remove('hidden');
-                    }
-                } catch (error) {
-                    console.error("Error enumerating devices:", error);
+            function handleLivenessCheck(detection) {
+                if (!detection || !livenessState.user) return;
+                
+                if (detection.expressions.happy > 0.8) {
+                    clearTimeout(livenessState.timeout);
+                    const session = getSessions().find(s => s.id === sessionSelector.value);
+                    recordAttendance(livenessState.user, session);
+                    attendedThisSession.push(livenessState.user.name);
+                    showSuccessModal(livenessState.user);
+                    speak(`Absensi berhasil ${livenessState.user.name}`);
+                    resetAttendanceState();
                 }
             }
+            
+            function resetAttendanceState() {
+                currentAppMode = 'recognizing';
+                recognitionState = { name: null, count: 0, user: null };
+                livenessState = { user: null, timeout: null };
+                setTimeout(() => showStatus(statusEl, 'Arahkan wajah ke kamera...'), 3000);
+            }
 
-            switchCameraBtn.addEventListener('click', () => {
-                stopWebcam();
-                facingMode = facingMode === 'user' ? 'environment' : 'user';
-                video.style.transform = facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
-                const activePageId = document.querySelector('.page:not(.hidden)').id;
-                const container = document.querySelector(`#${activePageId} .video-container`);
-                if(container) startWebcam(container);
-            });
+            function showSuccessModal(user) {
+                document.getElementById('success-photo').src = user.photo;
+                document.getElementById('success-name').innerText = user.name;
+                document.getElementById('success-time').innerText = `Pada pukul ${new Date().toLocaleTimeString('id-ID')}`;
+                successModal.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+                setTimeout(() => {
+                    successModal.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+                }, 4000);
+            }
 
-            // --- Manajemen Data (localStorage) ---
-            function getRegisteredUsers() { return JSON.parse(localStorage.getItem('faceAttendanceUsers_v2')) || []; }
-            function saveRegisteredUsers(users) { localStorage.setItem('faceAttendanceUsers_v2', JSON.stringify(users)); }
+            // --- Helper & Manajemen Data ---
+            let faceMatcherCache = {};
+            async function createFaceMatcher(sessionId) {
+                if (faceMatcherCache[sessionId]) return faceMatcherCache[sessionId];
+                const session = getSessions().find(s => s.id === sessionId);
+                if (!session) return null;
+                const participants = getRegisteredUsers().filter(u => session.participants.includes(u.name));
+                if (participants.length === 0) return null;
+                const labeledDescriptors = participants.map(p => new faceapi.LabeledFaceDescriptors(p.name, p.descriptors.map(d => new Float32Array(d))));
+                faceMatcherCache[sessionId] = new faceapi.FaceMatcher(labeledDescriptors, 0.55);
+                return faceMatcherCache[sessionId];
+            }
+
+            function getRegisteredUsers() { return JSON.parse(localStorage.getItem('faceAttendanceUsers_v3')) || []; }
+            function saveRegisteredUsers(users) { localStorage.setItem('faceAttendanceUsers_v3', JSON.stringify(users)); }
             function getAttendanceLog() { return JSON.parse(localStorage.getItem('faceAttendanceLog')) || []; }
             function saveAttendanceLog(log) { localStorage.setItem('faceAttendanceLog', JSON.stringify(log)); }
             function getSessions() { return JSON.parse(localStorage.getItem('faceAttendanceSessions')) || []; }
             function saveSessions(sessions) { localStorage.setItem('faceAttendanceSessions', JSON.stringify(sessions)); }
 
-            // --- Fungsi Registrasi Multi-Sampel ---
-            registerBtn.addEventListener('click', () => {
-                const namaLengkap = document.getElementById('namaLengkap').value.trim();
-                if (!namaLengkap) {
-                    showRegisterStatus('Nama lengkap harus diisi.', 'error');
-                    return;
-                }
-                const users = getRegisteredUsers();
-                if (users.some(user => user.name.toLowerCase() === namaLengkap.toLowerCase())) {
-                    showRegisterStatus(`Nama "${namaLengkap}" sudah terdaftar.`, 'error');
-                    return;
-                }
-                
-                isRegistrationMode = true;
-                registrationSamples = [];
-                registerBtn.disabled = true;
-                registerBtn.innerText = 'Mengambil Sampel...';
-            });
-
-            async function handleRegistrationProcess(detection, statusUI) {
-                const sampleCount = registrationSamples.length;
-                statusUI.innerText = `Mengambil sampel ${sampleCount + 1} dari ${SAMPLES_REQUIRED}... Tahan posisi!`;
-
-                if (!window.takingSample) {
-                    window.takingSample = true;
-                    setTimeout(async () => {
-                        registrationSamples.push(Array.from(detection.descriptor));
-                        speak(`Sampel ${sampleCount + 1} diambil`);
-
-                        if (registrationSamples.length >= SAMPLES_REQUIRED) {
-                            await finalizeRegistration();
-                        }
-                        window.takingSample = false;
-                    }, 1500);
-                }
+            function recordAttendance(user, session) {
+                const log = getAttendanceLog();
+                const now = new Date();
+                const deadline = new Date(`${session.date}T${session.startTime}`);
+                const remark = now <= deadline ? 'Tepat Waktu' : 'Terlambat';
+                log.push({ name: user.name, date: now.toISOString().split('T')[0], time: now.toLocaleTimeString('id-ID'), sessionId: session.id, remark: remark, status: 'Hadir' });
+                saveAttendanceLog(log);
             }
 
-            async function finalizeRegistration() {
-                const namaLengkap = document.getElementById('namaLengkap').value.trim();
-                const users = getRegisteredUsers();
-                users.push({ name: namaLengkap, descriptors: registrationSamples });
-                saveRegisteredUsers(users);
-                
-                showRegisterStatus(`Registrasi berhasil untuk ${namaLengkap}!`, 'success');
-                speak(`Registrasi berhasil untuk ${namaLengkap}`);
-                
-                document.getElementById('namaLengkap').value = '';
-                isRegistrationMode = false;
-                registrationSamples = [];
-                registerBtn.disabled = false;
-                registerBtn.innerText = 'Mulai Registrasi';
+            function showStatus(element, message, type = 'info') {
+                element.innerText = message;
+                const container = element.parentElement;
+                container.className = 'text-center p-4 rounded-lg min-h-[80px] flex items-center justify-center mb-4';
+                switch(type) {
+                    case 'success': container.classList.add('bg-green-900', 'text-green-300'); break;
+                    case 'error': container.classList.add('bg-red-900', 'text-red-300'); break;
+                    case 'warning': container.classList.add('bg-yellow-900', 'text-yellow-300'); break;
+                    default: container.classList.add('bg-gray-700');
+                }
             }
             
-            function showRegisterStatus(message, type) {
-                registerStatusEl.innerText = message;
-                registerStatusEl.className = 'text-center mt-4 p-3 rounded-lg min-h-[50px]';
-                if (type === 'success') registerStatusEl.classList.add('bg-green-900', 'text-green-300');
-                else if (type === 'error') registerStatusEl.classList.add('bg-red-900', 'text-red-300');
+            // --- Navigasi & Event Listeners ---
+            sessionSelector.addEventListener('change', () => {
+                const sessionId = sessionSelector.value;
+                attendedThisSession = [];
+                resetAttendanceState();
+                const container = document.querySelector('#page-absensi .video-container');
+                if (sessionId) {
+                    currentAppMode = 'recognizing';
+                    startWebcam(container);
+                } else {
+                    stopWebcam();
+                }
+            });
+
+            function switchPage(targetPageId) {
+                stopWebcam();
+                pages.forEach(p => p.classList.add('hidden'));
+                const targetPage = document.getElementById(targetPageId);
+                if(targetPage) targetPage.classList.remove('hidden');
+
+                navButtons.forEach(b => b.classList.replace('bg-cyan-600', 'bg-gray-700'));
+                const activeBtn = document.getElementById(`nav-${targetPageId.substring(5)}`);
+                if (activeBtn) activeBtn.classList.replace('bg-gray-700', 'bg-cyan-600');
+
+                if (targetPageId === 'page-absensi') {
+                    populateSessionSelector();
+                } else if (targetPageId === 'page-registrasi') {
+                    const container = document.querySelector('#page-registrasi .video-container');
+                    startWebcam(container);
+                } else if (targetPageId === 'page-peserta') {
+                    displayPeserta();
+                } else if (targetPageId === 'page-laporan') {
+                    displayLaporan();
+                } else if (targetPageId === 'page-sesi-list') {
+                    displaySessionList();
+                } else if (targetPageId === 'page-grafik') {
+                    displayGrafik();
+                }
+            }
+            
+            function populateSessionSelector() {
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                const activeSessions = getSessions().filter(s => {
+                    if (s.date !== todayStr) return false;
+                    const startTime = new Date(`${s.date}T${s.startTime}`);
+                    const endTime = new Date(`${s.date}T${s.endTime}`);
+                    return now >= startTime && now <= endTime;
+                });
+                sessionSelector.innerHTML = '<option value="">-- Pilih Sesi Aktif --</option>';
+                if (activeSessions.length > 0) {
+                    activeSessions.forEach((s, index) => {
+                        sessionSelector.innerHTML += `<option value="${s.id}">Sesi #${index + 1} (${s.startTime} - ${s.endTime})</option>`;
+                    });
+                } else {
+                    sessionSelector.innerHTML = '<option value="">Tidak ada sesi aktif</option>';
+                }
             }
 
-            // --- Fungsi Jadwal Sesi ---
+            // --- Sisa Fungsi Display dan Event Listener ---
             createSessionBtn.addEventListener('click', () => {
                 const date = sessionDateEl.value;
                 const startTime = sessionStartTimeEl.value;
@@ -510,12 +625,10 @@
                 const allParticipants = getRegisteredUsers().map(u => u.name);
 
                 if (!date || !startTime || !endTime) {
-                    showSessionStatus('Semua kolom harus diisi.', 'error');
-                    return;
+                    return showSessionStatus('Semua kolom harus diisi.', 'error');
                 }
                 if (allParticipants.length === 0) {
-                    showSessionStatus('Tidak bisa membuat sesi. Belum ada peserta yang terdaftar.', 'error');
-                    return;
+                    return showSessionStatus('Belum ada peserta terdaftar.', 'error');
                 }
 
                 const sessions = getSessions();
@@ -539,104 +652,6 @@
                 else if (type === 'error') sessionStatusEl.classList.add('bg-red-900', 'text-red-300');
             }
 
-            // --- Fungsi Absensi Stabil ---
-            function populateSessionSelector() {
-                const now = new Date();
-                const todayStr = now.toISOString().split('T')[0];
-                
-                const activeSessions = getSessions().filter(s => {
-                    if (s.date !== todayStr) return false;
-                    const startTime = new Date(`${s.date}T${s.startTime}`);
-                    const endTime = new Date(`${s.date}T${s.endTime}`);
-                    return now >= startTime && now <= endTime;
-                });
-
-                sessionSelector.innerHTML = '<option value="">-- Pilih Sesi Aktif --</option>';
-                if (activeSessions.length > 0) {
-                    activeSessions.forEach((s, index) => {
-                        sessionSelector.innerHTML += `<option value="${s.id}">Sesi #${index + 1} (${s.startTime} - ${s.endTime})</option>`;
-                    });
-                } else {
-                    sessionSelector.innerHTML = '<option value="">Tidak ada sesi aktif saat ini</option>';
-                }
-            }
-
-            sessionSelector.addEventListener('change', () => {
-                const sessionId = sessionSelector.value;
-                attendedThisSession = [];
-                attendanceTracker = { name: null, count: 0 };
-                const container = document.querySelector('#page-absensi .video-container');
-                if (sessionId) {
-                    startWebcam(container);
-                } else {
-                    stopWebcam();
-                }
-            });
-
-            async function handleAutoAttendance(detection, statusUI) {
-                const sessionId = sessionSelector.value;
-                if (!sessionId) return;
-
-                const sessions = getSessions();
-                const selectedSession = sessions.find(s => s.id === sessionId);
-                const allUsers = getRegisteredUsers();
-                const participantsData = allUsers.filter(user => selectedSession.participants.includes(user.name));
-                if (participantsData.length === 0) return;
-
-                const labeledFaceDescriptors = participantsData.map(user => {
-                    const descriptors = user.descriptors.map(d => new Float32Array(d));
-                    return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
-                });
-                
-                const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.55);
-
-                const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-                
-                if (bestMatch.label === 'unknown') {
-                    statusUI.innerText = 'Wajah tidak terdaftar dalam sesi ini.';
-                    attendanceTracker = { name: null, count: 0 };
-                    return;
-                }
-
-                if (attendanceTracker.name === bestMatch.label) {
-                    attendanceTracker.count++;
-                } else {
-                    attendanceTracker = { name: bestMatch.label, count: 1 };
-                }
-
-                statusUI.innerText = `Halo, ${bestMatch.label}! Tahan posisi... (${Math.round(attendanceTracker.count / ATTENDANCE_CONFIRMATION_COUNT * 100)}%)`;
-
-                if (attendanceTracker.count >= ATTENDANCE_CONFIRMATION_COUNT) {
-                    const user = participantsData.find(u => u.name === bestMatch.label);
-                    if (user && !attendedThisSession.includes(user.name)) {
-                        const attendanceStatus = recordAttendance(user, selectedSession);
-                        if (attendanceStatus.status === 'success') {
-                            attendedThisSession.push(user.name);
-                            statusUI.innerText = `Absensi berhasil: ${user.name}`;
-                            speak(`Absensi berhasil ${user.name}`);
-                            attendanceTracker = { name: null, count: 0 };
-                        }
-                    }
-                }
-            }
-
-            function recordAttendance(user, session) {
-                const log = getAttendanceLog();
-                const now = new Date();
-                const today = now.toISOString().split('T')[0];
-                const hasAttendedToday = log.some(entry => entry.name === user.name && entry.sessionId === session.id);
-
-                if (hasAttendedToday) return { status: 'already_attended' };
-                
-                const deadline = new Date(`${session.date}T${session.startTime}`);
-                const remark = now <= deadline ? 'Tepat Waktu' : 'Terlambat';
-
-                log.push({ name: user.name, date: today, time: now.toLocaleTimeString('id-ID'), sessionId: session.id, remark: remark, status: 'Hadir' });
-                saveAttendanceLog(log);
-                return { status: 'success', remark: remark };
-            }
-
-            // --- Fungsi Daftar Peserta ---
             function displayPeserta() {
                 const users = getRegisteredUsers();
                 pesertaBody.innerHTML = '';
@@ -656,15 +671,14 @@
             }
 
             function deleteUser(name) {
-                if (confirm(`Apakah Anda yakin ingin menghapus peserta "${name}"? Semua data terkait akan dihapus.`)) {
+                if (confirm(`Apakah Anda yakin ingin menghapus peserta "${name}"?`)) {
                     let users = getRegisteredUsers().filter(user => user.name !== name);
                     saveRegisteredUsers(users);
                     displayPeserta();
                     speak(`${name} telah dihapus.`);
                 }
             }
-            
-            // --- Fungsi Daftar Sesi ---
+
             function displaySessionList() {
                 sessionListContainer.innerHTML = '';
                 const sessions = getSessions().sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -677,129 +691,78 @@
                     sessionElement.className = 'bg-gray-700 p-4 rounded-lg';
                     sessionElement.innerHTML = `
                         <div class="flex justify-between items-start">
-                             <div class="cursor-pointer flex-grow" data-session-id="${s.id}">
-                                 <h3 class="font-bold text-lg">${s.date}</h3>
-                                 <p class="text-sm text-gray-400">Jam: ${s.startTime} - ${s.endTime}</p>
-                                 <p class="text-sm text-gray-400">${s.participants.length} Peserta</p>
-                             </div>
-                             <button data-session-id="${s.id}" class="delete-session-btn text-red-500 hover:text-red-400 font-bold p-1 text-xl">&times;</button>
+                            <div class="cursor-pointer flex-grow" data-session-id="${s.id}">
+                                <h3 class="font-bold text-lg">${s.date}</h3>
+                                <p class="text-sm text-gray-400">Jam: ${s.startTime} - ${s.endTime}</p>
+                                <p class="text-sm text-gray-400">${s.participants.length} Peserta</p>
+                            </div>
+                            <button data-session-id="${s.id}" class="delete-session-btn text-red-500 hover:text-red-400 font-bold p-1 text-xl">&times;</button>
                         </div>
                         <div id="detail-${s.id}" class="hidden mt-3 pt-3 border-t border-gray-600"></div>
                     `;
-                    
-                    sessionElement.querySelector('.cursor-pointer').addEventListener('click', (e) => {
+                    sessionElement.querySelector('.cursor-pointer').addEventListener('click', () => {
                         const detailEl = document.getElementById(`detail-${s.id}`);
-                        if (detailEl.classList.contains('hidden')) {
-                            showSessionDetail(s.id, detailEl);
-                            detailEl.classList.remove('hidden');
-                        } else {
-                            detailEl.classList.add('hidden');
-                        }
+                        detailEl.classList.toggle('hidden');
+                        if (!detailEl.classList.contains('hidden')) showSessionDetail(s.id, detailEl);
                     });
-
                     sessionElement.querySelector('.delete-session-btn').addEventListener('click', (e) => {
                         e.stopPropagation();
                         deleteSession(s.id);
                     });
-
                     sessionListContainer.appendChild(sessionElement);
                 });
             }
 
             function deleteSession(sessionId) {
-                if (confirm('Yakin ingin menghapus sesi ini? Semua data absensi terkait juga akan dihapus.')) {
-                    let sessions = getSessions().filter(s => s.id !== sessionId);
-                    saveSessions(sessions);
-
-                    let log = getAttendanceLog().filter(l => l.sessionId !== sessionId);
-                    saveAttendanceLog(log);
-
+                if (confirm('Yakin menghapus sesi ini dan semua data absensinya?')) {
+                    saveSessions(getSessions().filter(s => s.id !== sessionId));
+                    saveAttendanceLog(getAttendanceLog().filter(l => l.sessionId !== sessionId));
                     speak("Sesi telah dihapus.");
                     displaySessionList();
                 }
             }
 
             function showSessionDetail(sessionId, detailElement) {
-                const sessions = getSessions();
-                const selectedSession = sessions.find(s => s.id === sessionId);
-                const log = getAttendanceLog();
-                const sessionLog = log.filter(l => l.sessionId === sessionId);
-                
-                detailElement.innerHTML = '<ul class="space-y-1"></ul>';
-                const listEl = detailElement.querySelector('ul');
-
-                selectedSession.participants.forEach(participantName => {
-                    const attendanceRecord = sessionLog.find(l => l.name === participantName);
-                    let status, color;
-                    if (attendanceRecord) {
-                        status = attendanceRecord.status;
-                        color = 'text-green-400';
-                    } else {
-                        status = 'Tidak Hadir';
-                        color = 'text-red-400';
-                    }
-                    listEl.innerHTML += `<li class="text-sm ${color}">${participantName}: ${status}</li>`;
-                });
+                const session = getSessions().find(s => s.id === sessionId);
+                const sessionLog = getAttendanceLog().filter(l => l.sessionId === sessionId);
+                const listHtml = session.participants.map(pName => {
+                    const record = sessionLog.find(l => l.name === pName);
+                    const status = record ? record.status : 'Tidak Hadir';
+                    const color = record ? 'text-green-400' : 'text-red-400';
+                    return `<li class="text-sm ${color}">${pName}: ${status}</li>`;
+                }).join('');
+                detailElement.innerHTML = `<ul class="space-y-1">${listHtml}</ul>`;
             }
 
-            // --- Fungsi Grafik ---
             function displayGrafik() {
                 populateGrafikSessionFilter();
-                displayPerformanceRankingChart();
                 displayAttendanceSummaryChart();
+                displayPerformanceRankingChart();
             }
 
             function populateGrafikSessionFilter() {
                 const sessions = getSessions();
-                const currentFilterValue = grafikSessionFilter.value;
-                grafikSessionFilter.innerHTML = '<option value="all">Semua Sesi (Ringkasan)</option>';
-                sessions.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach((s, index) => {
-                    const optionText = `${s.date} @ ${s.startTime}`;
-                    grafikSessionFilter.innerHTML += `<option value="${s.id}">${optionText}</option>`;
+                grafikSessionFilter.innerHTML = '<option value="all">Semua Sesi</option>';
+                sessions.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(s => {
+                    grafikSessionFilter.innerHTML += `<option value="${s.id}">${s.date} @ ${s.startTime}</option>`;
                 });
-                if (currentFilterValue) {
-                    grafikSessionFilter.value = currentFilterValue;
-                } else if (sessions.length > 0) {
-                    grafikSessionFilter.value = sessions[0].id;
-                } else {
-                    grafikSessionFilter.value = 'all';
-                }
             }
 
             function displayAttendanceSummaryChart() {
                 const sessionId = grafikSessionFilter.value;
                 const ctx = document.getElementById('summaryChart').getContext('2d');
-                if (summaryChart) {
-                    summaryChart.destroy();
-                }
-
-                if (!sessionId) return;
+                if (summaryChart) summaryChart.destroy();
 
                 const sessions = getSessions();
                 const log = getAttendanceLog();
-                
-                let title;
-
-                if (sessionId === 'all') {
-                    title = 'Ringkasan Semua Sesi';
-                } else {
-                    const selectedSession = sessions.find(s => s.id === sessionId);
-                    if (!selectedSession) return;
-                    title = `Ringkasan Sesi: ${selectedSession.date}`;
-                }
+                const relevantSessions = sessionId === 'all' ? sessions : sessions.filter(s => s.id === sessionId);
+                if (relevantSessions.length === 0) return;
 
                 let statusCounts = { 'Hadir': 0, 'Izin': 0, 'Sakit': 0, 'Tidak Hadir': 0 };
-                
-                const relevantSessions = sessionId === 'all' ? sessions : [sessions.find(s => s.id === sessionId)];
-                
                 relevantSessions.forEach(session => {
                     session.participants.forEach(pName => {
                         const record = log.find(l => l.sessionId === session.id && l.name === pName);
-                        if (record) {
-                            statusCounts[record.status]++;
-                        } else {
-                            statusCounts['Tidak Hadir']++;
-                        }
+                        statusCounts[record ? record.status : 'Tidak Hadir']++;
                     });
                 });
 
@@ -811,255 +774,97 @@
                             data: [statusCounts.Hadir, statusCounts['Tidak Hadir'], statusCounts.Izin, statusCounts.Sakit],
                             backgroundColor: ['#22c55e', '#ef4444', '#3b82f6', '#f59e0b'],
                             borderColor: '#4b5563',
-                            borderWidth: 2,
                         }]
                     },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                                labels: { color: '#e5e7eb', font: { size: 14 } }
-                            },
-                            title: {
-                                display: true,
-                                text: title,
-                                color: '#e5e7eb',
-                                font: { size: 16 }
-                            }
-                        }
-                    }
+                    options: { plugins: { legend: { labels: { color: '#e5e7eb' } } } }
                 });
             }
 
             function displayPerformanceRankingChart() {
-                const users = getRegisteredUsers();
                 const log = getAttendanceLog();
-                performanceLeaderboardContainer.innerHTML = '';
+                const userScores = getRegisteredUsers().map(user => ({
+                    name: user.name,
+                    score: log.filter(l => l.name === user.name && l.remark === 'Tepat Waktu').length
+                })).sort((a, b) => b.score - a.score);
 
-                if (users.length === 0) {
-                    performanceLeaderboardContainer.innerHTML = '<p class="text-gray-400 text-center">Belum ada peserta untuk diperingkatkan.</p>';
-                    return;
-                }
-
-                const userStats = {};
-
-                users.forEach(user => {
-                    userStats[user.name] = { score: 0 };
-                });
-
-                log.forEach(entry => {
-                    if (userStats[entry.name] && entry.remark === 'Tepat Waktu') {
-                        userStats[entry.name].score++;
-                    }
-                });
-
-                const sortedUsers = Object.keys(userStats).map(name => {
-                    return { name, score: userStats[name].score };
-                }).sort((a, b) => b.score - a.score);
-
-                sortedUsers.forEach((user, index) => {
-                    let cardHtml = '';
+                performanceLeaderboardContainer.innerHTML = userScores.map((user, index) => {
                     const rank = index + 1;
-                    const scoreText = `${user.score} Poin`;
-
-                    if (rank <= 3) {
-                        const colors = {
-                            1: { bg: 'bg-yellow-500/20', border: 'border-yellow-400', text: 'text-yellow-300', icon: '🏆' },
-                            2: { bg: 'bg-gray-400/20', border: 'border-gray-300', text: 'text-gray-200', icon: '🥈' },
-                            3: { bg: 'bg-orange-700/20', border: 'border-orange-500', text: 'text-orange-300', icon: '🥉' }
-                        };
-                        const c = colors[rank];
-                        cardHtml = `
-                            <div class="p-4 rounded-lg border ${c.bg} ${c.border} flex items-center justify-between">
+                    const colors = { 1: 'text-yellow-300', 2: 'text-gray-200', 3: 'text-orange-300' };
+                    const icon = { 1: '🏆', 2: '🥈', 3: '🥉' };
+                    return `<div class="p-3 rounded-lg bg-gray-800/50 flex items-center justify-between">
                                 <div class="flex items-center">
-                                    <span class="text-2xl mr-4">${c.icon}</span>
-                                    <div>
-                                        <p class="font-bold text-lg ${c.text}">${user.name}</p>
-                                        <p class="text-sm ${c.text}">${scoreText}</p>
-                                    </div>
-                                </div>
-                                <p class="font-black text-3xl ${c.text}">#${rank}</p>
-                            </div>
-                        `;
-                    } else {
-                        cardHtml = `
-                            <div class="p-3 rounded-lg bg-gray-800/50 flex items-center justify-between">
-                                <div class="flex items-center">
-                                    <p class="font-bold text-lg mr-4 text-gray-400">#${rank}</p>
+                                    <p class="font-bold text-lg mr-4 ${colors[rank] || 'text-gray-400'}">${icon[rank] || `#${rank}`}</p>
                                     <p>${user.name}</p>
                                 </div>
-                                <p class="font-semibold text-gray-300">${scoreText}</p>
-                            </div>
-                        `;
-                    }
-                    performanceLeaderboardContainer.innerHTML += cardHtml;
-                });
+                                <p class="font-semibold text-gray-300">${user.score} Poin</p>
+                            </div>`;
+                }).join('');
             }
-            
-            grafikSessionFilter.addEventListener('change', displayAttendanceSummaryChart);
 
-            // --- Fungsi Laporan ---
+            grafikSessionFilter.addEventListener('change', () => {
+                displayAttendanceSummaryChart();
+            });
+
             function displayLaporan() {
                 const sessions = getSessions();
-                
-                const currentFilterValue = reportSessionFilter.value;
-                reportSessionFilter.innerHTML = '<option value="">-- Pilih Sesi Laporan --</option>';
-                sessions.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach((s, index) => {
-                    const optionText = `${s.date} @ ${s.startTime} (Sesi #${sessions.length - index})`;
-                    reportSessionFilter.innerHTML += `<option value="${s.id}">${optionText}</option>`;
+                reportSessionFilter.innerHTML = '<option value="">-- Pilih Sesi --</option>';
+                sessions.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(s => {
+                    reportSessionFilter.innerHTML += `<option value="${s.id}">${s.date} @ ${s.startTime}</option>`;
                 });
-                reportSessionFilter.value = currentFilterValue;
+                renderLaporanTable();
+            }
 
-                const selectedSessionId = reportSessionFilter.value;
-                laporanBody.innerHTML = '';
-                if (!selectedSessionId) {
-                    laporanBody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Pilih sesi untuk melihat laporan.</td></tr>`;
+            function renderLaporanTable() {
+                const sessionId = reportSessionFilter.value;
+                if (!sessionId) {
+                    laporanBody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Pilih sesi.</td></tr>`;
                     return;
                 }
-
-                const selectedSession = sessions.find(s => s.id === selectedSessionId);
+                const session = getSessions().find(s => s.id === sessionId);
                 const log = getAttendanceLog();
-                
-                if (!selectedSession) return;
-
-                selectedSession.participants.forEach(participantName => {
-                    const attendanceRecord = log.find(l => l.name === participantName && l.sessionId === selectedSessionId);
-                    let statusHtml, time, remarkHtml, actionHtml;
-
-                    const currentStatus = attendanceRecord ? attendanceRecord.status : 'Tidak Hadir';
-                    
-                    if (attendanceRecord && attendanceRecord.status === 'Hadir') {
-                        statusHtml = '<span class="text-green-400">Hadir</span>';
-                        time = attendanceRecord.time;
-                        remarkHtml = attendanceRecord.remark === 'Terlambat'
-                            ? `<span class="text-yellow-400">${attendanceRecord.remark}</span>`
-                            : `<span class="text-green-400">${attendanceRecord.remark}</span>`;
-                    } else {
-                        statusHtml = `
-                            <select data-name="${participantName}" data-session-id="${selectedSessionId}" class="status-override-select bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-1">
-                                <option value="Tidak Hadir" ${currentStatus === 'Tidak Hadir' ? 'selected' : ''}>Tidak Hadir</option>
-                                <option value="Hadir" ${currentStatus === 'Hadir' ? 'selected' : ''}>Hadir</option>
-                                <option value="Izin" ${currentStatus === 'Izin' ? 'selected' : ''}>Izin</option>
-                                <option value="Sakit" ${currentStatus === 'Sakit' ? 'selected' : ''}>Sakit</option>
-                            </select>
-                            <span class="status-print-only text-red-400">${currentStatus}</span>
-                        `;
-                        time = attendanceRecord ? attendanceRecord.time : '-';
-                        remarkHtml = attendanceRecord ? `<span class="text-blue-400">${attendanceRecord.remark}</span>` : '-';
-                    }
-                    actionHtml = `<button data-name="${participantName}" data-session-id="${selectedSessionId}" class="delete-log-btn font-medium text-red-500 hover:underline">Hapus</button>`;
-                    laporanBody.innerHTML += `<tr class="bg-gray-800 border-b border-gray-700 hover:bg-gray-600"><td class="py-4 px-6 font-medium text-white whitespace-nowrap">${participantName}</td><td class="py-4 px-6">${statusHtml}</td><td class="py-4 px-6">${time}</td><td class="py-4 px-6">${remarkHtml}</td><td class="py-4 px-6 text-right no-print">${actionHtml}</td></tr>`;
-                });
+                laporanBody.innerHTML = session.participants.map(pName => {
+                    const record = log.find(l => l.name === pName && l.sessionId === sessionId);
+                    const status = record ? record.status : 'Tidak Hadir';
+                    const time = record && record.time ? record.time : '-';
+                    const remark = record && record.remark ? record.remark : '-';
+                    return `
+                        <tr class="bg-gray-800 border-b border-gray-700">
+                            <td class="py-4 px-6">${pName}</td>
+                            <td class="py-4 px-6">${status}</td>
+                            <td class="py-4 px-6">${time}</td>
+                            <td class="py-4 px-6">${remark}</td>
+                            <td class="py-4 px-6 text-right no-print">
+                                <button data-name="${pName}" data-session-id="${sessionId}" class="delete-log-btn font-medium text-red-500 hover:underline">Hapus</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
             }
 
-            function updateManualAttendance(name, sessionId, newStatus) {
-                let log = getAttendanceLog();
-                const sessions = getSessions();
-                const selectedSession = sessions.find(s => s.id === sessionId);
-
-                log = log.filter(entry => !(entry.name === name && entry.sessionId === sessionId));
-
-                if (newStatus !== 'Tidak Hadir') {
-                    let newEntry = {
-                        name: name, date: selectedSession.date, sessionId: sessionId,
-                        status: newStatus, time: '-', remark: `Manual - ${newStatus}`
-                    };
-                    if (newStatus === 'Hadir') {
-                        newEntry.time = 'Manual';
-                    }
-                    log.push(newEntry);
-                }
-                saveAttendanceLog(log);
-                displayLaporan();
-            }
-
-            function deleteAttendanceRecord(name, sessionId) {
-                let log = getAttendanceLog();
-                const updatedLog = log.filter(entry => !(entry.name === name && entry.sessionId === sessionId));
-                saveAttendanceLog(updatedLog);
-                displayLaporan();
-                speak(`Absensi untuk ${name} telah dihapus.`);
-            }
+            reportSessionFilter.addEventListener('change', renderLaporanTable);
 
             laporanBody.addEventListener('click', (e) => {
                 if (e.target.classList.contains('delete-log-btn')) {
-                    const name = e.target.dataset.name;
-                    const sessionId = e.target.dataset.sessionId;
-                    if (confirm(`Yakin ingin menghapus absensi untuk ${name} pada sesi ini?`)) {
-                        deleteAttendanceRecord(name, sessionId);
+                    const { name, sessionId } = e.target.dataset;
+                    if (confirm(`Yakin hapus absensi ${name}?`)) {
+                        saveAttendanceLog(getAttendanceLog().filter(l => !(l.name === name && l.sessionId === sessionId)));
+                        renderLaporanTable();
                     }
-                }
-            });
-
-            laporanBody.addEventListener('change', (e) => {
-                if (e.target.classList.contains('status-override-select')) {
-                    const name = e.target.dataset.name;
-                    const sessionId = e.target.dataset.sessionId;
-                    const newStatus = e.target.value;
-                    updateManualAttendance(name, sessionId, newStatus);
                 }
             });
 
             printLaporanBtn.addEventListener('click', () => {
-                if (!reportSessionFilter.value) {
-                    alert("Pilih sesi terlebih dahulu sebelum mencetak.");
-                    return;
-                }
-                const sessionText = reportSessionFilter.options[reportSessionFilter.selectedIndex].text.split('(')[0].trim();
-                document.getElementById('laporan-title').innerText = `Laporan Kehadiran: ${sessionText}`;
+                if (!reportSessionFilter.value) return alert("Pilih sesi.");
                 window.print();
-                document.getElementById('laporan-title').innerText = `Laporan Kehadiran`;
             });
 
-            reportSessionFilter.addEventListener('change', displayLaporan);
+            navButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const pageId = `page-${btn.id.substring(4)}`;
+                    switchPage(pageId);
+                });
+            });
 
-            // --- Navigasi Halaman ---
-            function switchPage(targetPageId) {
-                pages.forEach(page => page.classList.add('hidden'));
-                document.getElementById(targetPageId).classList.remove('hidden');
-                navButtons.forEach(btn => btn.classList.replace('bg-cyan-600', 'bg-gray-700'));
-                
-                const navId = `nav-${targetPageId.substring(5)}`;
-                const activeBtn = document.getElementById(navId);
-                if(activeBtn) activeBtn.classList.replace('bg-gray-700', 'bg-cyan-600');
-                
-                isRegistrationMode = false;
-                registerBtn.disabled = false;
-                registerBtn.innerText = 'Mulai Registrasi';
-                
-                const absensiContainer = document.querySelector('#page-absensi .video-container');
-                const registrasiContainer = document.querySelector('#page-registrasi .video-container');
-
-                if (targetPageId === 'page-absensi') {
-                    populateSessionSelector();
-                    if (sessionSelector.value) {
-                        startWebcam(absensiContainer);
-                    } else {
-                        stopWebcam();
-                    }
-                } else if (targetPageId === 'page-registrasi') {
-                    startWebcam(registrasiContainer);
-                } else {
-                    stopWebcam();
-                }
-
-                if (targetPageId === 'page-laporan') displayLaporan();
-                if (targetPageId === 'page-peserta') displayPeserta();
-                if (targetPageId === 'page-sesi-list') displaySessionList();
-                if (targetPageId === 'page-grafik') displayGrafik();
-            }
-
-            document.getElementById('nav-absensi').addEventListener('click', () => switchPage('page-absensi'));
-            document.getElementById('nav-jadwal').addEventListener('click', () => switchPage('page-jadwal'));
-            document.getElementById('nav-sesi-list').addEventListener('click', () => switchPage('page-sesi-list'));
-            document.getElementById('nav-grafik').addEventListener('click', () => switchPage('page-grafik'));
-            document.getElementById('nav-registrasi').addEventListener('click', () => switchPage('page-registrasi'));
-            document.getElementById('nav-peserta').addEventListener('click', () => switchPage('page-peserta'));
-            document.getElementById('nav-laporan').addEventListener('click', () => switchPage('page-laporan'));
-
-            // --- Mulai Aplikasi ---
-            setupPWA();
             initialize();
         });
     </script>
