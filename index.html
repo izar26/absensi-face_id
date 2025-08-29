@@ -276,14 +276,15 @@
             let currentStream = null;
             let facingMode = 'user';
             let attendedThisSession = [];
-            let detectionInterval; // Ganti loop dengan interval
+            let detectionInterval;
 
-            // --- PERBAIKAN: Variabel State untuk Logika Baru ---
+            // --- Variabel State untuk Logika Baru ---
             let isRegistrationMode = false;
             let registrationSamples = [];
             const SAMPLES_REQUIRED = 3;
             let attendanceTracker = { name: null, count: 0 };
-            const ATTENDANCE_CONFIRMATION_FRAMES = 60; // ~2 detik pada 30fps
+            // PERBAIKAN: Sesuaikan frame konfirmasi dengan interval deteksi yang baru
+            const ATTENDANCE_CONFIRMATION_COUNT = 5; // Target ~2 detik (5 deteksi @ 400ms interval)
 
             // --- Fungsi Notifikasi Suara ---
             function speak(text) {
@@ -313,7 +314,7 @@
                 try {
                     statusEl.innerText = 'Memuat model pengenalan wajah...';
                     await Promise.all([
-                        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL), // PERBAIKAN: Ganti ke model yang lebih akurat
+                        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
                         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
                         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
                     ]);
@@ -336,7 +337,6 @@
                     clearInterval(detectionInterval);
                     detectionInterval = null;
                 }
-                // Sembunyikan video dan overlay dari container manapun
                 const videoContainer = video.parentElement;
                 if (videoContainer) {
                     const placeholderId = videoContainer.id.replace('video-container', 'camera-placeholder');
@@ -353,7 +353,6 @@
                 try {
                     statusEl.innerText = 'Menyalakan kamera...';
                     
-                    // Pindahkan elemen video ke container yang tepat
                     containerElement.append(video, overlay, switchCameraBtn);
                     video.classList.remove('hidden');
                     overlay.classList.remove('hidden');
@@ -369,7 +368,8 @@
                         const displaySize = { width: containerElement.clientWidth, height: containerElement.clientHeight };
                         faceapi.matchDimensions(overlay, displaySize);
                         if (!detectionInterval) {
-                            detectionInterval = setInterval(detectFaces, 100); // Deteksi setiap 100ms
+                            // PERBAIKAN: Ubah interval untuk performa lebih baik
+                            detectionInterval = setInterval(detectFaces, 400); // Deteksi setiap 400ms
                         }
                     };
                 } catch (error) {
@@ -385,7 +385,6 @@
                 const displaySize = { width: video.clientWidth, height: video.clientHeight };
                 faceapi.matchDimensions(overlay, displaySize);
 
-                // PERBAIKAN: Gunakan model SsdMobilenetv1 yang lebih akurat
                 const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
                     .withFaceLandmarks()
                     .withFaceDescriptors();
@@ -399,7 +398,7 @@
                 
                 if (detections.length !== 1) {
                     currentStatusEl.innerText = detections.length > 1 ? 'Hanya boleh ada satu wajah.' : 'Arahkan wajah ke kamera.';
-                    if (activePageId === 'page-absensi') attendanceTracker = { name: null, count: 0 }; // Reset tracker
+                    if (activePageId === 'page-absensi') attendanceTracker = { name: null, count: 0 };
                     return;
                 }
 
@@ -443,7 +442,7 @@
             function getSessions() { return JSON.parse(localStorage.getItem('faceAttendanceSessions')) || []; }
             function saveSessions(sessions) { localStorage.setItem('faceAttendanceSessions', JSON.stringify(sessions)); }
 
-            // --- PERBAIKAN: Fungsi Registrasi Multi-Sampel ---
+            // --- Fungsi Registrasi Multi-Sampel ---
             registerBtn.addEventListener('click', () => {
                 const namaLengkap = document.getElementById('namaLengkap').value.trim();
                 if (!namaLengkap) {
@@ -466,7 +465,6 @@
                 const sampleCount = registrationSamples.length;
                 statusUI.innerText = `Mengambil sampel ${sampleCount + 1} dari ${SAMPLES_REQUIRED}... Tahan posisi!`;
 
-                // Beri jeda antar pengambilan sampel
                 if (!window.takingSample) {
                     window.takingSample = true;
                     setTimeout(async () => {
@@ -477,7 +475,7 @@
                             await finalizeRegistration();
                         }
                         window.takingSample = false;
-                    }, 1500); // Jeda 1.5 detik
+                    }, 1500);
                 }
             }
 
@@ -490,7 +488,6 @@
                 showRegisterStatus(`Registrasi berhasil untuk ${namaLengkap}!`, 'success');
                 speak(`Registrasi berhasil untuk ${namaLengkap}`);
                 
-                // Reset state
                 document.getElementById('namaLengkap').value = '';
                 isRegistrationMode = false;
                 registrationSamples = [];
@@ -542,7 +539,7 @@
                 else if (type === 'error') sessionStatusEl.classList.add('bg-red-900', 'text-red-300');
             }
 
-            // --- PERBAIKAN: Fungsi Absensi Stabil ---
+            // --- Fungsi Absensi Stabil ---
             function populateSessionSelector() {
                 const now = new Date();
                 const todayStr = now.toISOString().split('T')[0];
@@ -567,7 +564,7 @@
             sessionSelector.addEventListener('change', () => {
                 const sessionId = sessionSelector.value;
                 attendedThisSession = [];
-                attendanceTracker = { name: null, count: 0 }; // Reset tracker saat ganti sesi
+                attendanceTracker = { name: null, count: 0 };
                 const container = document.querySelector('#page-absensi .video-container');
                 if (sessionId) {
                     startWebcam(container);
@@ -586,33 +583,30 @@
                 const participantsData = allUsers.filter(user => selectedSession.participants.includes(user.name));
                 if (participantsData.length === 0) return;
 
-                // PERBAIKAN: Gunakan semua descriptor untuk matching
                 const labeledFaceDescriptors = participantsData.map(user => {
                     const descriptors = user.descriptors.map(d => new Float32Array(d));
                     return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
                 });
                 
-                // PERBAIKAN: Naikkan threshold
                 const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.55);
 
                 const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
                 
                 if (bestMatch.label === 'unknown') {
                     statusUI.innerText = 'Wajah tidak terdaftar dalam sesi ini.';
-                    attendanceTracker = { name: null, count: 0 }; // Reset
+                    attendanceTracker = { name: null, count: 0 };
                     return;
                 }
 
-                // Logika tracker untuk absensi stabil
                 if (attendanceTracker.name === bestMatch.label) {
                     attendanceTracker.count++;
                 } else {
                     attendanceTracker = { name: bestMatch.label, count: 1 };
                 }
 
-                statusUI.innerText = `Halo, ${bestMatch.label}! Tahan posisi... (${Math.round(attendanceTracker.count / ATTENDANCE_CONFIRMATION_FRAMES * 100)}%)`;
+                statusUI.innerText = `Halo, ${bestMatch.label}! Tahan posisi... (${Math.round(attendanceTracker.count / ATTENDANCE_CONFIRMATION_COUNT * 100)}%)`;
 
-                if (attendanceTracker.count >= ATTENDANCE_CONFIRMATION_FRAMES) {
+                if (attendanceTracker.count >= ATTENDANCE_CONFIRMATION_COUNT) {
                     const user = participantsData.find(u => u.name === bestMatch.label);
                     if (user && !attendedThisSession.includes(user.name)) {
                         const attendanceStatus = recordAttendance(user, selectedSession);
@@ -620,7 +614,7 @@
                             attendedThisSession.push(user.name);
                             statusUI.innerText = `Absensi berhasil: ${user.name}`;
                             speak(`Absensi berhasil ${user.name}`);
-                            attendanceTracker = { name: null, count: 0 }; // Reset setelah berhasil
+                            attendanceTracker = { name: null, count: 0 };
                         }
                     }
                 }
@@ -1030,7 +1024,6 @@
                 const activeBtn = document.getElementById(navId);
                 if(activeBtn) activeBtn.classList.replace('bg-gray-700', 'bg-cyan-600');
                 
-                // Reset state registrasi jika meninggalkan halaman
                 isRegistrationMode = false;
                 registerBtn.disabled = false;
                 registerBtn.innerText = 'Mulai Registrasi';
