@@ -37,7 +37,6 @@
         }
         #video {
             object-fit: cover;
-            /* FIX: Membalik video secara horizontal agar tidak mirror */
             transform: scaleX(-1);
         }
         #camera-placeholder {
@@ -162,9 +161,17 @@
 
              <!-- Halaman Grafik -->
             <div id="page-grafik" class="page hidden">
-                <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Peringkat Kehadiran Tepat Waktu</h2>
-                <div class="bg-gray-700 p-4 rounded-lg">
-                    <canvas id="attendanceChart"></canvas>
+                <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Analisis Kehadiran</h2>
+                <div class="mb-6">
+                    <label for="grafik-session-filter" class="block mb-2 text-sm font-medium text-gray-300">Pilih Sesi untuk Ringkasan:</label>
+                    <select id="grafik-session-filter" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></select>
+                </div>
+                <div class="bg-gray-700 p-4 rounded-lg mb-6">
+                    <canvas id="summaryChart"></canvas>
+                </div>
+                <h3 class="text-xl font-semibold text-center mb-4 text-cyan-400">Peringkat Disiplin (Total Poin Tepat Waktu)</h3>
+                <div id="performance-leaderboard-container" class="space-y-2">
+                    <!-- Peringkat akan di-generate oleh JS -->
                 </div>
             </div>
 
@@ -176,7 +183,7 @@
                         <label for="namaLengkap" class="block mb-2 text-sm font-medium text-gray-300">Nama Lengkap</label>
                         <input type="text" id="namaLengkap" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" placeholder="Contoh: Budi Sanjaya" required>
                     </div>
-                    <button id="register-btn" class="w-full action-btn bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg transition duration-300">Daftarkan Wajah</button>
+                    <button id="register-btn" class="w-full action-btn bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition duration-300">Daftarkan Wajah</button>
                 </div>
                  <div id="register-status" class="text-center mt-4 p-3 rounded-lg min-h-[50px]"></div>
             </div>
@@ -253,12 +260,15 @@
             const sessionListContainer = document.getElementById('session-list-container');
             const switchCameraBtn = document.getElementById('switch-camera-btn');
             const cameraPlaceholder = document.getElementById('camera-placeholder');
-            let attendanceChart = null;
+            const grafikSessionFilter = document.getElementById('grafik-session-filter');
+            const performanceLeaderboardContainer = document.getElementById('performance-leaderboard-container');
+            let summaryChart = null;
 
             const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
             let currentStream = null;
             let facingMode = 'user';
             let attendedThisSession = [];
+            let lastValidDetection = null;
 
             // --- Fungsi Notifikasi Suara ---
             function speak(text) {
@@ -330,42 +340,72 @@
                 }
             }
             
-            async function detectFacesLoop() {
+            function getFrameBrightness(context, width, height) {
+                const imageData = context.getImageData(0, 0, width, height);
+                const data = imageData.data;
+                let sum = 0;
+                for (let i = 0; i < data.length; i += 4) {
+                    sum += (data[i] + data[i+1] + data[i+2]) / 3;
+                }
+                return sum / (width * height);
+            }
+            
+            async function detectionLoop() {
                 if (video.paused || video.ended || !currentStream) {
                     return;
                 }
 
-                const sessionId = sessionSelector.value;
-                if (!sessionId) { // Jangan lakukan deteksi jika tidak ada sesi dipilih
-                    requestAnimationFrame(() => detectFacesLoop());
-                    return;
-                }
-
-                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
                 const displaySize = { width: video.clientWidth, height: video.clientHeight };
                 faceapi.matchDimensions(overlay, displaySize);
                 const resizedDetections = faceapi.resizeResults(detections, displaySize);
                 
                 context.clearRect(0, 0, overlay.width, overlay.height);
+                faceapi.draw.drawDetections(overlay, resizedDetections);
+                
+                const activePageId = document.querySelector('.page:not(.hidden)').id;
+                const currentStatusEl = activePageId === 'page-registrasi' ? registerStatusEl : statusEl;
+                const actionButton = activePageId === 'page-registrasi' ? registerBtn : null;
+                
+                let qualityOk = false;
+                lastValidDetection = null;
 
-                if (detections.length > 0) {
-                    handleAutoAttendance(detections);
+                if (detections.length === 1 && detections[0].landmarks) {
+                    const box = detections[0].detection.box;
+                    context.drawImage(video, 0, 0, overlay.width, overlay.height);
+                    const brightness = getFrameBrightness(context, overlay.width, overlay.height);
+                    context.clearRect(0, 0, overlay.width, overlay.height);
+                    faceapi.draw.drawDetections(overlay, resizedDetections);
+
+                    if (box.width < 100) {
+                        currentStatusEl.innerText = 'Wajah terlalu jauh, coba lebih dekat.';
+                    } else if (brightness < 60) {
+                        currentStatusEl.innerText = 'Pencahayaan terlalu gelap!';
+                    } else {
+                        currentStatusEl.innerText = 'Kondisi optimal. Siap untuk aksi.';
+                        qualityOk = true;
+                        lastValidDetection = detections[0];
+                    }
+                } else if (detections.length > 1) {
+                    currentStatusEl.innerText = 'Hanya boleh ada satu wajah di kamera.';
                 } else {
-                     statusEl.innerText = 'Arahkan wajah ke kamera.';
+                    currentStatusEl.innerText = 'Arahkan wajah dengan jelas ke kamera.';
+                }
+
+                if (actionButton) {
+                    actionButton.disabled = !qualityOk;
+                }
+
+                if (activePageId === 'page-absensi' && qualityOk) {
+                    handleAutoAttendance(lastValidDetection);
                 }
                 
-                resizedDetections.forEach(d => {
-                    const box = d.detection.box;
-                    const drawBox = new faceapi.draw.DrawBox(box, { boxColor: '#6b7280' });
-                    drawBox.draw(overlay);
-                });
-                
-                requestAnimationFrame(() => detectFacesLoop());
+                requestAnimationFrame(() => detectionLoop());
             }
 
             video.addEventListener('play', () => {
                 statusEl.innerText = 'Kamera aktif. Arahkan wajah ke kamera.';
-                detectFacesLoop();
+                detectionLoop();
             });
 
             async function checkCameraSupport() {
@@ -398,22 +438,16 @@
             // --- Fungsi Registrasi ---
             registerBtn.addEventListener('click', async () => {
                 const namaLengkap = document.getElementById('namaLengkap').value.trim();
-                if (!namaLengkap) {
-                    showRegisterStatus('Nama Lengkap wajib diisi.', 'error');
-                    return;
-                }
-                showRegisterStatus('Memproses... Deteksi wajah...', 'info');
-                const detections = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
-                if (!detections) {
-                    showRegisterStatus('Wajah tidak terdeteksi.', 'error');
-                    return;
-                }
+                if (!namaLengkap || !lastValidDetection) return;
+
+                const faceDescriptor = await faceapi.computeFaceDescriptor(video, lastValidDetection);
+
                 const users = getRegisteredUsers();
                 if (users.some(user => user.name.toLowerCase() === namaLengkap.toLowerCase())) {
                     showRegisterStatus(`Nama "${namaLengkap}" sudah terdaftar.`, 'error');
                     return;
                 }
-                users.push({ name: namaLengkap, descriptor: Array.from(detections.descriptor) });
+                users.push({ name: namaLengkap, descriptor: Array.from(faceDescriptor) });
                 saveRegisteredUsers(users);
                 showRegisterStatus(`Registrasi berhasil untuk ${namaLengkap}!`, 'success');
                 speak(`Registrasi berhasil untuk ${namaLengkap}`);
@@ -425,7 +459,6 @@
                 registerStatusEl.className = 'text-center mt-4 p-3 rounded-lg min-h-[50px]';
                 if (type === 'success') registerStatusEl.classList.add('bg-green-900', 'text-green-300');
                 else if (type === 'error') registerStatusEl.classList.add('bg-red-900', 'text-red-300');
-                else registerStatusEl.classList.add('bg-blue-900', 'text-blue-300');
             }
 
             // --- Fungsi Jadwal Sesi ---
@@ -489,7 +522,7 @@
 
             sessionSelector.addEventListener('change', () => {
                 const sessionId = sessionSelector.value;
-                attendedThisSession = []; // Reset daftar yang sudah absen setiap ganti sesi
+                attendedThisSession = [];
                 if (sessionId) {
                     startWebcam();
                 } else {
@@ -497,7 +530,7 @@
                 }
             });
 
-            async function handleAutoAttendance(detections) {
+            async function handleAutoAttendance(detection) {
                 const sessionId = sessionSelector.value;
                 if (!sessionId) return;
 
@@ -508,27 +541,19 @@
                 if (participantsData.length === 0) return;
 
                 const labeledFaceDescriptors = participantsData.map(user => new faceapi.LabeledFaceDescriptors(user.name, [new Float32Array(user.descriptor)]));
-                const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.4);
+                const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.38);
 
-                const successfulNamesThisFrame = [];
+                const faceDescriptor = await faceapi.computeFaceDescriptor(video, detection);
+                const bestMatch = faceMatcher.findBestMatch(faceDescriptor);
+                const user = participantsData.find(u => u.name === bestMatch.label);
 
-                for (const detection of detections) {
-                    const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-                    const user = participantsData.find(u => u.name === bestMatch.label);
-
-                    if (user && !attendedThisSession.includes(user.name)) {
-                        const attendanceStatus = recordAttendance(user, selectedSession);
-                        if (attendanceStatus.status === 'success') {
-                            attendedThisSession.push(user.name);
-                            successfulNamesThisFrame.push(user.name);
-                        }
+                if (user && !attendedThisSession.includes(user.name)) {
+                    const attendanceStatus = recordAttendance(user, selectedSession);
+                    if (attendanceStatus.status === 'success') {
+                        attendedThisSession.push(user.name);
+                        statusEl.innerText = `Absensi berhasil: ${user.name}`;
+                        speak(`Absensi berhasil ${user.name}`);
                     }
-                }
-
-                if (successfulNamesThisFrame.length > 0) {
-                    const summaryText = `Absensi berhasil: ${successfulNamesThisFrame.join(', ')}`;
-                    statusEl.innerText = summaryText;
-                    speak(summaryText);
                 }
             }
 
@@ -656,120 +681,160 @@
 
             // --- Fungsi Grafik ---
             function displayGrafik() {
-                const users = getRegisteredUsers();
+                populateGrafikSessionFilter();
+                displayPerformanceRankingChart();
+                displayAttendanceSummaryChart();
+            }
+
+            function populateGrafikSessionFilter() {
+                const sessions = getSessions();
+                const currentFilterValue = grafikSessionFilter.value;
+                grafikSessionFilter.innerHTML = '<option value="all">Semua Sesi (Ringkasan)</option>';
+                sessions.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach((s, index) => {
+                    const optionText = `${s.date} @ ${s.startTime}`;
+                    grafikSessionFilter.innerHTML += `<option value="${s.id}">${optionText}</option>`;
+                });
+                if (currentFilterValue) {
+                    grafikSessionFilter.value = currentFilterValue;
+                } else if (sessions.length > 0) {
+                    grafikSessionFilter.value = sessions[0].id;
+                } else {
+                    grafikSessionFilter.value = 'all';
+                }
+            }
+
+            function displayAttendanceSummaryChart() {
+                const sessionId = grafikSessionFilter.value;
+                const ctx = document.getElementById('summaryChart').getContext('2d');
+                if (summaryChart) {
+                    summaryChart.destroy();
+                }
+
+                if (!sessionId) return;
+
                 const sessions = getSessions();
                 const log = getAttendanceLog();
+                
+                let title, participants;
 
-                if (users.length === 0) return;
+                if (sessionId === 'all') {
+                    title = 'Ringkasan Semua Sesi';
+                } else {
+                    const selectedSession = sessions.find(s => s.id === sessionId);
+                    if (!selectedSession) return;
+                    title = `Ringkasan Sesi: ${selectedSession.date}`;
+                }
 
-                const userStats = {};
-
-                users.forEach(user => {
-                    userStats[user.name] = { scheduled: 0, onTime: 0 };
-                });
-
-                sessions.forEach(session => {
-                    session.participants.forEach(participantName => {
-                        if (userStats[participantName]) {
-                            userStats[participantName].scheduled++;
+                let statusCounts = { 'Hadir': 0, 'Izin': 0, 'Sakit': 0, 'Tidak Hadir': 0 };
+                
+                const relevantSessions = sessionId === 'all' ? sessions : [sessions.find(s => s.id === sessionId)];
+                
+                relevantSessions.forEach(session => {
+                    session.participants.forEach(pName => {
+                        const record = log.find(l => l.sessionId === session.id && l.name === pName);
+                        if (record) {
+                            statusCounts[record.status]++;
+                        } else {
+                            statusCounts['Tidak Hadir']++;
                         }
                     });
                 });
 
-                log.forEach(entry => {
-                    if (userStats[entry.name] && entry.remark === 'Tepat Waktu') {
-                        userStats[entry.name].onTime++;
-                    }
-                });
-
-                const sortedUsers = Object.keys(userStats).map(name => {
-                    const stats = userStats[name];
-                    const percentage = stats.scheduled > 0 ? (stats.onTime / stats.scheduled) * 100 : 0;
-                    return { name, percentage };
-                }).sort((a, b) => b.percentage - a.percentage);
-
-                const labels = sortedUsers.map((u, index) => {
-                    if (index === 0) return `🥇 ${u.name}`;
-                    if (index === 1) return `🥈 ${u.name}`;
-                    if (index === 2) return `🥉 ${u.name}`;
-                    return u.name;
-                });
-                const data = sortedUsers.map(u => u.percentage);
-
-                const ctx = document.getElementById('attendanceChart').getContext('2d');
-
-                const goldGradient = ctx.createLinearGradient(0, 0, 0, 400);
-                goldGradient.addColorStop(0, 'rgba(255, 215, 0, 0.8)');
-                goldGradient.addColorStop(1, 'rgba(218, 165, 32, 0.8)');
-
-                const silverGradient = ctx.createLinearGradient(0, 0, 0, 400);
-                silverGradient.addColorStop(0, 'rgba(192, 192, 192, 0.8)');
-                silverGradient.addColorStop(1, 'rgba(169, 169, 169, 0.8)');
-
-                const bronzeGradient = ctx.createLinearGradient(0, 0, 0, 400);
-                bronzeGradient.addColorStop(0, 'rgba(205, 127, 50, 0.8)');
-                bronzeGradient.addColorStop(1, 'rgba(165, 42, 42, 0.8)');
-
-                const defaultGradient = ctx.createLinearGradient(0, 0, 0, 400);
-                defaultGradient.addColorStop(0, 'rgba(54, 162, 235, 0.7)');
-                defaultGradient.addColorStop(1, 'rgba(25, 25, 112, 0.7)');
-
-                const backgroundColors = sortedUsers.map((user, index) => {
-                    if (index === 0) return goldGradient;
-                    if (index === 1) return silverGradient;
-                    if (index === 2) return bronzeGradient;
-                    return defaultGradient;
-                });
-
-                if (attendanceChart) {
-                    attendanceChart.destroy();
-                }
-                attendanceChart = new Chart(ctx, {
-                    type: 'bar',
+                summaryChart = new Chart(ctx, {
+                    type: 'doughnut',
                     data: {
-                        labels: labels,
+                        labels: ['Hadir', 'Tidak Hadir', 'Izin', 'Sakit'],
                         datasets: [{
-                            label: '% Kehadiran Tepat Waktu',
-                            data: data,
-                            backgroundColor: backgroundColors,
-                            borderRadius: 5,
-                            borderSkipped: false,
+                            data: [statusCounts.Hadir, statusCounts['Tidak Hadir'], statusCounts.Izin, statusCounts.Sakit],
+                            backgroundColor: ['#22c55e', '#ef4444', '#3b82f6', '#f59e0b'],
+                            borderColor: '#4b5563',
+                            borderWidth: 2,
                         }]
                     },
                     options: {
                         responsive: true,
-                        indexAxis: 'y',
-                        scales: {
-                            x: {
-                                beginAtZero: true,
-                                max: 100,
-                                ticks: { color: '#e5e7eb', font: { size: 14, family: 'sans-serif' }, callback: (value) => value + '%' },
-                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                            },
-                            y: {
-                                ticks: { color: '#e5e7eb', font: { size: 14, family: 'sans-serif' } },
-                                grid: { display: false }
-                            }
-                        },
                         plugins: {
                             legend: {
-                                display: false
+                                position: 'top',
+                                labels: { color: '#e5e7eb', font: { size: 14 } }
                             },
-                            tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                titleColor: '#fff',
-                                bodyColor: '#fff',
-                                displayColors: false,
-                                callbacks: {
-                                    label: function(context) {
-                                        return `Tepat Waktu: ${context.raw.toFixed(1)}%`;
-                                    }
-                                }
+                            title: {
+                                display: true,
+                                text: title,
+                                color: '#e5e7eb',
+                                font: { size: 16 }
                             }
                         }
                     }
                 });
             }
+
+            function displayPerformanceRankingChart() {
+                const users = getRegisteredUsers();
+                const log = getAttendanceLog();
+                performanceLeaderboardContainer.innerHTML = '';
+
+                if (users.length === 0) {
+                    performanceLeaderboardContainer.innerHTML = '<p class="text-gray-400 text-center">Belum ada peserta untuk diperingkatkan.</p>';
+                    return;
+                }
+
+                const userStats = {};
+
+                users.forEach(user => {
+                    userStats[user.name] = { score: 0 };
+                });
+
+                log.forEach(entry => {
+                    if (userStats[entry.name] && entry.remark === 'Tepat Waktu') {
+                        userStats[entry.name].score++;
+                    }
+                });
+
+                const sortedUsers = Object.keys(userStats).map(name => {
+                    return { name, score: userStats[name].score };
+                }).sort((a, b) => b.score - a.score);
+
+                sortedUsers.forEach((user, index) => {
+                    let cardHtml = '';
+                    const rank = index + 1;
+                    const scoreText = `${user.score} Poin`;
+
+                    if (rank <= 3) {
+                        const colors = {
+                            1: { bg: 'bg-yellow-500/20', border: 'border-yellow-400', text: 'text-yellow-300', icon: '🏆' },
+                            2: { bg: 'bg-gray-400/20', border: 'border-gray-300', text: 'text-gray-200', icon: '🥈' },
+                            3: { bg: 'bg-orange-700/20', border: 'border-orange-500', text: 'text-orange-300', icon: '🥉' }
+                        };
+                        const c = colors[rank];
+                        cardHtml = `
+                            <div class="p-4 rounded-lg border ${c.bg} ${c.border} flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <span class="text-2xl mr-4">${c.icon}</span>
+                                    <div>
+                                        <p class="font-bold text-lg ${c.text}">${user.name}</p>
+                                        <p class="text-sm ${c.text}">${scoreText}</p>
+                                    </div>
+                                </div>
+                                <p class="font-black text-3xl ${c.text}">#${rank}</p>
+                            </div>
+                        `;
+                    } else {
+                        cardHtml = `
+                            <div class="p-3 rounded-lg bg-gray-800/50 flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <p class="font-bold text-lg mr-4 text-gray-400">#${rank}</p>
+                                    <p>${user.name}</p>
+                                </div>
+                                <p class="font-semibold text-gray-300">${scoreText}</p>
+                            </div>
+                        `;
+                    }
+                    performanceLeaderboardContainer.innerHTML += cardHtml;
+                });
+            }
+            
+            grafikSessionFilter.addEventListener('change', displayAttendanceSummaryChart);
 
             // --- Fungsi Laporan ---
             function displayLaporan() {
@@ -935,6 +1000,7 @@
             document.getElementById('nav-peserta').addEventListener('click', () => switchPage('page-peserta'));
             document.getElementById('nav-laporan').addEventListener('click', () => switchPage('page-laporan'));
 
+            // --- Mulai Aplikasi ---
             setupPWA();
             initialize();
         });
