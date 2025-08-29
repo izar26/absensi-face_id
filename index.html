@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aplikasi Absensi Face ID</title>
+    <title>Aplikasi Absensi Face ID (Diperbaiki)</title>
     
     <!-- PWA Manifest and Theme Color -->
     <link rel="manifest" id="manifest">
@@ -26,6 +26,7 @@
             margin: 0 auto;
             background-color: #333;
             border-radius: 0.5rem;
+            overflow: hidden; /* Menjaga elemen di dalam container */
         }
         #video, #overlay {
             position: absolute;
@@ -37,7 +38,7 @@
         }
         #video {
             object-fit: cover;
-            transform: scaleX(-1);
+            transform: scaleX(-1); /* Cermin untuk kamera depan */
         }
         #camera-placeholder {
             display: flex;
@@ -92,18 +93,18 @@
     <div class="w-full max-w-4xl bg-gray-800 rounded-lg shadow-xl p-6 printable-area">
         <header class="text-center mb-6 no-print">
             <h1 class="text-3xl font-bold text-cyan-400">Sistem Absensi Pengenalan Wajah</h1>
-            <p class="text-gray-400">Buat jadwal sesi, lalu lakukan absensi berdasarkan sesi tersebut.</p>
+            <p class="text-gray-400">Akurasi ditingkatkan dengan registrasi multi-sampel dan deteksi stabil.</p>
         </header>
 
         <!-- Navigasi -->
         <nav class="flex justify-center flex-wrap gap-2 sm:space-x-4 mb-6 border-b border-gray-700 pb-4 no-print">
             <button id="nav-absensi" class="nav-btn bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Absensi</button>
-            <button id="nav-jadwal" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Buat Sesi</button>
-            <button id="nav-sesi-list" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Daftar Sesi</button>
-            <button id="nav-grafik" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Grafik</button>
             <button id="nav-registrasi" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Registrasi</button>
             <button id="nav-peserta" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Daftar Peserta</button>
+            <button id="nav-jadwal" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Buat Sesi</button>
+            <button id="nav-sesi-list" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Daftar Sesi</button>
             <button id="nav-laporan" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Laporan</button>
+            <button id="nav-grafik" class="nav-btn bg-gray-700 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 text-sm sm:text-base">Grafik</button>
         </nav>
 
         <main>
@@ -114,17 +115,28 @@
                     <select id="session-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"></select>
                 </div>
                 <div class="video-container mb-4">
-                    <div id="camera-placeholder"><p>Pilih sesi untuk mengaktifkan kamera</p></div>
-                    <video id="video" autoplay muted playsinline class="hidden"></video>
-                    <canvas id="overlay"></canvas>
-                    <button id="switch-camera-btn" class="absolute top-2 right-2 bg-gray-800 bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 z-10 hidden" title="Ganti Kamera">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 20L20 4M20 4v5h-5M4 4h5v5"></path></svg>
-                    </button>
+                    <div id="camera-placeholder-absensi"><p>Pilih sesi untuk mengaktifkan kamera</p></div>
                 </div>
                 <div id="status-container" class="text-center p-4 rounded-lg bg-gray-700 min-h-[80px] flex items-center justify-center mb-4">
                     <p id="status" class="text-lg">Menginisialisasi model...</p>
                 </div>
                 <p class="text-xs text-gray-500 text-center mt-2">Tips: Pastikan wajah Anda berada di area dengan pencahayaan yang baik.</p>
+            </div>
+
+            <!-- Halaman Registrasi -->
+            <div id="page-registrasi" class="page hidden">
+                <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Registrasi Wajah Baru</h2>
+                <div class="video-container mb-4">
+                     <div id="camera-placeholder-registrasi"><p>Kamera akan aktif di sini</p></div>
+                </div>
+                 <div class="max-w-md mx-auto">
+                    <div class="mb-4">
+                        <label for="namaLengkap" class="block mb-2 text-sm font-medium text-gray-300">Nama Lengkap</label>
+                        <input type="text" id="namaLengkap" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" placeholder="Contoh: Budi Sanjaya" required>
+                    </div>
+                    <button id="register-btn" class="w-full action-btn bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition duration-300">Mulai Registrasi</button>
+                    <div id="register-status" class="text-center mt-4 p-3 rounded-lg min-h-[50px]"></div>
+                </div>
             </div>
 
             <!-- Halaman Jadwal Sesi -->
@@ -175,19 +187,6 @@
                 </div>
             </div>
 
-            <!-- Halaman Registrasi -->
-            <div id="page-registrasi" class="page hidden">
-                 <div class="video-container mb-4"></div>
-                <div class="max-w-md mx-auto">
-                    <div class="mb-6">
-                        <label for="namaLengkap" class="block mb-2 text-sm font-medium text-gray-300">Nama Lengkap</label>
-                        <input type="text" id="namaLengkap" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5" placeholder="Contoh: Budi Sanjaya" required>
-                    </div>
-                    <button id="register-btn" class="w-full action-btn bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition duration-300">Daftarkan Wajah</button>
-                </div>
-                 <div id="register-status" class="text-center mt-4 p-3 rounded-lg min-h-[50px]"></div>
-            </div>
-
             <!-- Halaman Daftar Peserta -->
             <div id="page-peserta" class="page hidden">
                 <h2 class="text-2xl font-semibold text-center mb-4 text-cyan-400">Daftar Peserta Terdaftar</h2>
@@ -234,6 +233,16 @@
         </main>
     </div>
 
+    <!-- Video elements moved here to be globally accessible and not re-created -->
+    <div id="global-video-container" style="display: none;">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+        <button id="switch-camera-btn" class="absolute top-2 right-2 bg-gray-800 bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 z-10 hidden" title="Ganti Kamera">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 20L20 4M20 4v5h-5M4 4h5v5"></path></svg>
+        </button>
+    </div>
+
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- Elemen DOM ---
@@ -259,7 +268,6 @@
             const printLaporanBtn = document.getElementById('print-laporan');
             const sessionListContainer = document.getElementById('session-list-container');
             const switchCameraBtn = document.getElementById('switch-camera-btn');
-            const cameraPlaceholder = document.getElementById('camera-placeholder');
             const grafikSessionFilter = document.getElementById('grafik-session-filter');
             const performanceLeaderboardContainer = document.getElementById('performance-leaderboard-container');
             let summaryChart = null;
@@ -268,7 +276,14 @@
             let currentStream = null;
             let facingMode = 'user';
             let attendedThisSession = [];
-            let lastValidDetection = null;
+            let detectionInterval; // Ganti loop dengan interval
+
+            // --- PERBAIKAN: Variabel State untuk Logika Baru ---
+            let isRegistrationMode = false;
+            let registrationSamples = [];
+            const SAMPLES_REQUIRED = 3;
+            let attendanceTracker = { name: null, count: 0 };
+            const ATTENDANCE_CONFIRMATION_FRAMES = 60; // ~2 detik pada 30fps
 
             // --- Fungsi Notifikasi Suara ---
             function speak(text) {
@@ -298,10 +313,9 @@
                 try {
                     statusEl.innerText = 'Memuat model pengenalan wajah...';
                     await Promise.all([
-                        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL), // PERBAIKAN: Ganti ke model yang lebih akurat
                         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-                        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL)
+                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
                     ]);
                     checkCameraSupport();
                     switchPage('page-absensi');
@@ -317,22 +331,47 @@
                 if (currentStream) {
                     currentStream.getTracks().forEach(track => track.stop());
                     currentStream = null;
-                    video.classList.add('hidden');
-                    cameraPlaceholder.classList.remove('hidden');
-                    statusEl.innerText = 'Pilih sesi untuk mengaktifkan kamera.';
                 }
+                if (detectionInterval) {
+                    clearInterval(detectionInterval);
+                    detectionInterval = null;
+                }
+                // Sembunyikan video dan overlay dari container manapun
+                const videoContainer = video.parentElement;
+                if (videoContainer) {
+                    const placeholderId = videoContainer.id.replace('video-container', 'camera-placeholder');
+                    const placeholder = document.getElementById(placeholderId);
+                    if(placeholder) placeholder.classList.remove('hidden');
+                }
+                video.classList.add('hidden');
+                overlay.classList.add('hidden');
+                statusEl.innerText = 'Kamera tidak aktif.';
             }
 
-            async function startWebcam() {
-                if (currentStream) return;
+            async function startWebcam(containerElement) {
+                if (currentStream || !containerElement) return;
                 try {
                     statusEl.innerText = 'Menyalakan kamera...';
-                    const constraints = { video: { facingMode: facingMode } };
+                    
+                    // Pindahkan elemen video ke container yang tepat
+                    containerElement.append(video, overlay, switchCameraBtn);
+                    video.classList.remove('hidden');
+                    overlay.classList.remove('hidden');
+                    const placeholder = containerElement.querySelector('[id^="camera-placeholder"]');
+                    if(placeholder) placeholder.innerHTML = '';
+                    
+                    const constraints = { video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 } } };
                     const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     video.srcObject = stream;
                     currentStream = stream;
-                    video.classList.remove('hidden');
-                    cameraPlaceholder.classList.add('hidden');
+
+                    video.onloadedmetadata = () => {
+                        const displaySize = { width: containerElement.clientWidth, height: containerElement.clientHeight };
+                        faceapi.matchDimensions(overlay, displaySize);
+                        if (!detectionInterval) {
+                            detectionInterval = setInterval(detectFaces, 100); // Deteksi setiap 100ms
+                        }
+                    };
                 } catch (error) {
                     console.error("Gagal mengakses webcam:", error);
                     statusEl.innerText = 'Error: Gagal mengakses kamera. Izinkan akses kamera di browser Anda.';
@@ -340,73 +379,40 @@
                 }
             }
             
-            function getFrameBrightness(context, width, height) {
-                const imageData = context.getImageData(0, 0, width, height);
-                const data = imageData.data;
-                let sum = 0;
-                for (let i = 0; i < data.length; i += 4) {
-                    sum += (data[i] + data[i+1] + data[i+2]) / 3;
-                }
-                return sum / (width * height);
-            }
-            
-            async function detectionLoop() {
-                if (video.paused || video.ended || !currentStream) {
-                    return;
-                }
+            async function detectFaces() {
+                if (video.paused || video.ended || !currentStream) return;
 
-                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
                 const displaySize = { width: video.clientWidth, height: video.clientHeight };
                 faceapi.matchDimensions(overlay, displaySize);
-                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+                // PERBAIKAN: Gunakan model SsdMobilenetv1 yang lebih akurat
+                const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                    .withFaceLandmarks()
+                    .withFaceDescriptors();
                 
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
                 context.clearRect(0, 0, overlay.width, overlay.height);
                 faceapi.draw.drawDetections(overlay, resizedDetections);
                 
                 const activePageId = document.querySelector('.page:not(.hidden)').id;
                 const currentStatusEl = activePageId === 'page-registrasi' ? registerStatusEl : statusEl;
-                const actionButton = activePageId === 'page-registrasi' ? registerBtn : null;
                 
-                let qualityOk = false;
-                lastValidDetection = null;
+                if (detections.length !== 1) {
+                    currentStatusEl.innerText = detections.length > 1 ? 'Hanya boleh ada satu wajah.' : 'Arahkan wajah ke kamera.';
+                    if (activePageId === 'page-absensi') attendanceTracker = { name: null, count: 0 }; // Reset tracker
+                    return;
+                }
 
-                if (detections.length === 1 && detections[0].landmarks) {
-                    const box = detections[0].detection.box;
-                    context.drawImage(video, 0, 0, overlay.width, overlay.height);
-                    const brightness = getFrameBrightness(context, overlay.width, overlay.height);
-                    context.clearRect(0, 0, overlay.width, overlay.height);
-                    faceapi.draw.drawDetections(overlay, resizedDetections);
-
-                    if (box.width < 100) {
-                        currentStatusEl.innerText = 'Wajah terlalu jauh, coba lebih dekat.';
-                    } else if (brightness < 60) {
-                        currentStatusEl.innerText = 'Pencahayaan terlalu gelap!';
-                    } else {
-                        currentStatusEl.innerText = 'Kondisi optimal. Siap untuk aksi.';
-                        qualityOk = true;
-                        lastValidDetection = detections[0];
-                    }
-                } else if (detections.length > 1) {
-                    currentStatusEl.innerText = 'Hanya boleh ada satu wajah di kamera.';
+                const singleDetection = detections[0];
+                
+                if (isRegistrationMode) {
+                    handleRegistrationProcess(singleDetection, currentStatusEl);
+                } else if (activePageId === 'page-absensi') {
+                    handleAutoAttendance(singleDetection, currentStatusEl);
                 } else {
-                    currentStatusEl.innerText = 'Arahkan wajah dengan jelas ke kamera.';
+                     currentStatusEl.innerText = 'Wajah terdeteksi.';
                 }
-
-                if (actionButton) {
-                    actionButton.disabled = !qualityOk;
-                }
-
-                if (activePageId === 'page-absensi' && qualityOk) {
-                    handleAutoAttendance(lastValidDetection);
-                }
-                
-                requestAnimationFrame(() => detectionLoop());
             }
-
-            video.addEventListener('play', () => {
-                statusEl.innerText = 'Kamera aktif. Arahkan wajah ke kamera.';
-                detectionLoop();
-            });
 
             async function checkCameraSupport() {
                 try {
@@ -424,35 +430,73 @@
                 stopWebcam();
                 facingMode = facingMode === 'user' ? 'environment' : 'user';
                 video.style.transform = facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
-                startWebcam();
+                const activePageId = document.querySelector('.page:not(.hidden)').id;
+                const container = document.querySelector(`#${activePageId} .video-container`);
+                if(container) startWebcam(container);
             });
 
             // --- Manajemen Data (localStorage) ---
-            function getRegisteredUsers() { return JSON.parse(localStorage.getItem('faceAttendanceUsers')) || []; }
-            function saveRegisteredUsers(users) { localStorage.setItem('faceAttendanceUsers', JSON.stringify(users)); }
+            function getRegisteredUsers() { return JSON.parse(localStorage.getItem('faceAttendanceUsers_v2')) || []; }
+            function saveRegisteredUsers(users) { localStorage.setItem('faceAttendanceUsers_v2', JSON.stringify(users)); }
             function getAttendanceLog() { return JSON.parse(localStorage.getItem('faceAttendanceLog')) || []; }
             function saveAttendanceLog(log) { localStorage.setItem('faceAttendanceLog', JSON.stringify(log)); }
             function getSessions() { return JSON.parse(localStorage.getItem('faceAttendanceSessions')) || []; }
             function saveSessions(sessions) { localStorage.setItem('faceAttendanceSessions', JSON.stringify(sessions)); }
 
-            // --- Fungsi Registrasi ---
-            registerBtn.addEventListener('click', async () => {
+            // --- PERBAIKAN: Fungsi Registrasi Multi-Sampel ---
+            registerBtn.addEventListener('click', () => {
                 const namaLengkap = document.getElementById('namaLengkap').value.trim();
-                if (!namaLengkap || !lastValidDetection) return;
-
-                const faceDescriptor = await faceapi.computeFaceDescriptor(video, lastValidDetection);
-
+                if (!namaLengkap) {
+                    showRegisterStatus('Nama lengkap harus diisi.', 'error');
+                    return;
+                }
                 const users = getRegisteredUsers();
                 if (users.some(user => user.name.toLowerCase() === namaLengkap.toLowerCase())) {
                     showRegisterStatus(`Nama "${namaLengkap}" sudah terdaftar.`, 'error');
                     return;
                 }
-                users.push({ name: namaLengkap, descriptor: Array.from(faceDescriptor) });
+                
+                isRegistrationMode = true;
+                registrationSamples = [];
+                registerBtn.disabled = true;
+                registerBtn.innerText = 'Mengambil Sampel...';
+            });
+
+            async function handleRegistrationProcess(detection, statusUI) {
+                const sampleCount = registrationSamples.length;
+                statusUI.innerText = `Mengambil sampel ${sampleCount + 1} dari ${SAMPLES_REQUIRED}... Tahan posisi!`;
+
+                // Beri jeda antar pengambilan sampel
+                if (!window.takingSample) {
+                    window.takingSample = true;
+                    setTimeout(async () => {
+                        registrationSamples.push(Array.from(detection.descriptor));
+                        speak(`Sampel ${sampleCount + 1} diambil`);
+
+                        if (registrationSamples.length >= SAMPLES_REQUIRED) {
+                            await finalizeRegistration();
+                        }
+                        window.takingSample = false;
+                    }, 1500); // Jeda 1.5 detik
+                }
+            }
+
+            async function finalizeRegistration() {
+                const namaLengkap = document.getElementById('namaLengkap').value.trim();
+                const users = getRegisteredUsers();
+                users.push({ name: namaLengkap, descriptors: registrationSamples });
                 saveRegisteredUsers(users);
+                
                 showRegisterStatus(`Registrasi berhasil untuk ${namaLengkap}!`, 'success');
                 speak(`Registrasi berhasil untuk ${namaLengkap}`);
+                
+                // Reset state
                 document.getElementById('namaLengkap').value = '';
-            });
+                isRegistrationMode = false;
+                registrationSamples = [];
+                registerBtn.disabled = false;
+                registerBtn.innerText = 'Mulai Registrasi';
+            }
             
             function showRegisterStatus(message, type) {
                 registerStatusEl.innerText = message;
@@ -498,7 +542,7 @@
                 else if (type === 'error') sessionStatusEl.classList.add('bg-red-900', 'text-red-300');
             }
 
-            // --- Fungsi Absensi (Berdasarkan Sesi) ---
+            // --- PERBAIKAN: Fungsi Absensi Stabil ---
             function populateSessionSelector() {
                 const now = new Date();
                 const todayStr = now.toISOString().split('T')[0];
@@ -523,14 +567,16 @@
             sessionSelector.addEventListener('change', () => {
                 const sessionId = sessionSelector.value;
                 attendedThisSession = [];
+                attendanceTracker = { name: null, count: 0 }; // Reset tracker saat ganti sesi
+                const container = document.querySelector('#page-absensi .video-container');
                 if (sessionId) {
-                    startWebcam();
+                    startWebcam(container);
                 } else {
                     stopWebcam();
                 }
             });
 
-            async function handleAutoAttendance(detection) {
+            async function handleAutoAttendance(detection, statusUI) {
                 const sessionId = sessionSelector.value;
                 if (!sessionId) return;
 
@@ -540,19 +586,42 @@
                 const participantsData = allUsers.filter(user => selectedSession.participants.includes(user.name));
                 if (participantsData.length === 0) return;
 
-                const labeledFaceDescriptors = participantsData.map(user => new faceapi.LabeledFaceDescriptors(user.name, [new Float32Array(user.descriptor)]));
-                const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.38);
+                // PERBAIKAN: Gunakan semua descriptor untuk matching
+                const labeledFaceDescriptors = participantsData.map(user => {
+                    const descriptors = user.descriptors.map(d => new Float32Array(d));
+                    return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
+                });
+                
+                // PERBAIKAN: Naikkan threshold
+                const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.55);
 
-                const faceDescriptor = await faceapi.computeFaceDescriptor(video, detection);
-                const bestMatch = faceMatcher.findBestMatch(faceDescriptor);
-                const user = participantsData.find(u => u.name === bestMatch.label);
+                const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+                
+                if (bestMatch.label === 'unknown') {
+                    statusUI.innerText = 'Wajah tidak terdaftar dalam sesi ini.';
+                    attendanceTracker = { name: null, count: 0 }; // Reset
+                    return;
+                }
 
-                if (user && !attendedThisSession.includes(user.name)) {
-                    const attendanceStatus = recordAttendance(user, selectedSession);
-                    if (attendanceStatus.status === 'success') {
-                        attendedThisSession.push(user.name);
-                        statusEl.innerText = `Absensi berhasil: ${user.name}`;
-                        speak(`Absensi berhasil ${user.name}`);
+                // Logika tracker untuk absensi stabil
+                if (attendanceTracker.name === bestMatch.label) {
+                    attendanceTracker.count++;
+                } else {
+                    attendanceTracker = { name: bestMatch.label, count: 1 };
+                }
+
+                statusUI.innerText = `Halo, ${bestMatch.label}! Tahan posisi... (${Math.round(attendanceTracker.count / ATTENDANCE_CONFIRMATION_FRAMES * 100)}%)`;
+
+                if (attendanceTracker.count >= ATTENDANCE_CONFIRMATION_FRAMES) {
+                    const user = participantsData.find(u => u.name === bestMatch.label);
+                    if (user && !attendedThisSession.includes(user.name)) {
+                        const attendanceStatus = recordAttendance(user, selectedSession);
+                        if (attendanceStatus.status === 'success') {
+                            attendedThisSession.push(user.name);
+                            statusUI.innerText = `Absensi berhasil: ${user.name}`;
+                            speak(`Absensi berhasil ${user.name}`);
+                            attendanceTracker = { name: null, count: 0 }; // Reset setelah berhasil
+                        }
                     }
                 }
             }
@@ -561,7 +630,7 @@
                 const log = getAttendanceLog();
                 const now = new Date();
                 const today = now.toISOString().split('T')[0];
-                const hasAttendedToday = log.some(entry => entry.name === user.name && entry.date === today && entry.sessionId === session.id);
+                const hasAttendedToday = log.some(entry => entry.name === user.name && entry.sessionId === session.id);
 
                 if (hasAttendedToday) return { status: 'already_attended' };
                 
@@ -593,7 +662,7 @@
             }
 
             function deleteUser(name) {
-                if (confirm(`Apakah Anda yakin ingin menghapus peserta "${name}"?`)) {
+                if (confirm(`Apakah Anda yakin ingin menghapus peserta "${name}"? Semua data terkait akan dihapus.`)) {
                     let users = getRegisteredUsers().filter(user => user.name !== name);
                     saveRegisteredUsers(users);
                     displayPeserta();
@@ -615,11 +684,11 @@
                     sessionElement.innerHTML = `
                         <div class="flex justify-between items-start">
                              <div class="cursor-pointer flex-grow" data-session-id="${s.id}">
-                                <h3 class="font-bold text-lg">${s.date}</h3>
-                                <p class="text-sm text-gray-400">Jam: ${s.startTime} - ${s.endTime}</p>
-                                <p class="text-sm text-gray-400">${s.participants.length} Peserta</p>
-                            </div>
-                            <button data-session-id="${s.id}" class="delete-session-btn text-red-500 hover:text-red-400 font-bold p-1 text-xl">&times;</button>
+                                 <h3 class="font-bold text-lg">${s.date}</h3>
+                                 <p class="text-sm text-gray-400">Jam: ${s.startTime} - ${s.endTime}</p>
+                                 <p class="text-sm text-gray-400">${s.participants.length} Peserta</p>
+                             </div>
+                             <button data-session-id="${s.id}" class="delete-session-btn text-red-500 hover:text-red-400 font-bold p-1 text-xl">&times;</button>
                         </div>
                         <div id="detail-${s.id}" class="hidden mt-3 pt-3 border-t border-gray-600"></div>
                     `;
@@ -866,7 +935,7 @@
 
                     const currentStatus = attendanceRecord ? attendanceRecord.status : 'Tidak Hadir';
                     
-                    if (currentStatus === 'Hadir') {
+                    if (attendanceRecord && attendanceRecord.status === 'Hadir') {
                         statusHtml = '<span class="text-green-400">Hadir</span>';
                         time = attendanceRecord.time;
                         remarkHtml = attendanceRecord.remark === 'Terlambat'
@@ -882,8 +951,8 @@
                             </select>
                             <span class="status-print-only text-red-400">${currentStatus}</span>
                         `;
-                        time = '-';
-                        remarkHtml = currentStatus !== 'Tidak Hadir' ? `<span class="text-blue-400">${currentStatus}</span>` : '-';
+                        time = attendanceRecord ? attendanceRecord.time : '-';
+                        remarkHtml = attendanceRecord ? `<span class="text-blue-400">${attendanceRecord.remark}</span>` : '-';
                     }
                     actionHtml = `<button data-name="${participantName}" data-session-id="${selectedSessionId}" class="delete-log-btn font-medium text-red-500 hover:underline">Hapus</button>`;
                     laporanBody.innerHTML += `<tr class="bg-gray-800 border-b border-gray-700 hover:bg-gray-600"><td class="py-4 px-6 font-medium text-white whitespace-nowrap">${participantName}</td><td class="py-4 px-6">${statusHtml}</td><td class="py-4 px-6">${time}</td><td class="py-4 px-6">${remarkHtml}</td><td class="py-4 px-6 text-right no-print">${actionHtml}</td></tr>`;
@@ -961,30 +1030,26 @@
                 const activeBtn = document.getElementById(navId);
                 if(activeBtn) activeBtn.classList.replace('bg-gray-700', 'bg-cyan-600');
                 
-                // FIX: Logika start/stop kamera yang lebih baik
-                if (targetPageId === 'page-registrasi') {
-                    startWebcam();
-                } else if (targetPageId === 'page-absensi') {
-                    // Jangan start kamera dulu, biarkan session selector yang mengontrol
+                // Reset state registrasi jika meninggalkan halaman
+                isRegistrationMode = false;
+                registerBtn.disabled = false;
+                registerBtn.innerText = 'Mulai Registrasi';
+                
+                const absensiContainer = document.querySelector('#page-absensi .video-container');
+                const registrasiContainer = document.querySelector('#page-registrasi .video-container');
+
+                if (targetPageId === 'page-absensi') {
                     populateSessionSelector();
-                    if (!sessionSelector.value) {
+                    if (sessionSelector.value) {
+                        startWebcam(absensiContainer);
+                    } else {
                         stopWebcam();
                     }
-                }
-                else {
+                } else if (targetPageId === 'page-registrasi') {
+                    startWebcam(registrasiContainer);
+                } else {
                     stopWebcam();
                 }
-
-                // Pindahkan video container jika targetnya halaman kamera
-                if (targetPageId === 'page-absensi' || targetPageId === 'page-registrasi') {
-                    const targetContainer = document.querySelector(`#${targetPageId} .video-container`);
-                    if (targetContainer) {
-                         targetContainer.appendChild(video);
-                         targetContainer.appendChild(overlay);
-                         targetContainer.appendChild(switchCameraBtn);
-                    }
-                }
-
 
                 if (targetPageId === 'page-laporan') displayLaporan();
                 if (targetPageId === 'page-peserta') displayPeserta();
